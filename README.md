@@ -29,4 +29,4 @@ https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
 </div>
 
 ## Important notice
-**The amazing sounds used in this addon are not mine.** Sounds are from **[osu!/ppy's lazer client assets](https://github.com/ppy/osu-resources)**. This addon is not affiliated with osu!/ppy it simply using some of its sounds :).
+**The amazing sounds used in this addon are not mine.** Sounds are from **[osu!/ppy's lazer client assets](https://github.com/ppy/osu-resources)**. This addon is not affiliated with osu!/ppy it just uses some of its sounds :).
