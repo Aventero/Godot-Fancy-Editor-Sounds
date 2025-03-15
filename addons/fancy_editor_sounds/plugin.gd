@@ -89,7 +89,7 @@ func _on_settings_changed() -> void:
 		delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
 
 func initialize() -> void:
-	create_sound_player(ActionType.TYPING)
+	create_sound_player(ActionType.TYPING, 1.1)
 	create_sound_player(ActionType.SELECTING, 1.2)
 	create_sound_player(ActionType.SELECTING_WORD)
 	create_sound_player(ActionType.DESELECTING, 1.3)
