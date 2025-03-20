@@ -3,6 +3,7 @@ extends EditorPlugin
 
 #region SOUND
 const KEY_DROP: Resource = preload("res://addons/fancy_editor_sounds/key_drop.tscn")
+const KEY_ZAP: Resource = preload("res://addons/fancy_editor_sounds/key_zap.tscn")
 var sound_player_datas: Dictionary[ActionType, SoundPlayerData]
 var typing_sounds: Array[Resource]
 enum ActionType {
@@ -48,16 +49,10 @@ var editors: Dictionary[String, SoundEditorInfo] = {}
 #endregion
 
 func _enter_tree() -> void:
-	initialize()
-	load_sounds()
-	register_sound_settings()
-
-	# Set up process for checking typing
-	set_process(true)
-
-	# Find shader container after UI is fully loaded
-	get_tree().create_timer(1.0).timeout.connect(find_shader_editor_wrapper)
-	editor_settings.settings_changed.connect(_on_settings_changed)
+	if not Engine.is_editor_hint():
+		return
+	
+	_initialize()
 
 func _shortcut_input(event: InputEvent) -> void:
 	if event is InputEventKey:
@@ -69,13 +64,22 @@ func _exit_tree() -> void:
 		data.player.queue_free()
 	set_process(false)
 
-func create_sound_player(action_type: ActionType, volume_multiplier: float = 1.0) -> AudioStreamPlayer:
-	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
-	player_data.volume_multiplier = volume_multiplier
-	player_data.player.volume_db = volume_db * player_data.volume_multiplier
-	add_child(player_data.player)
-	sound_player_datas[action_type] = player_data
-	return player_data.player
+func _process(delta: float) -> void:
+	if not Engine.is_editor_hint():
+		return
+	
+	periodic_editor_scan(delta)
+	register_script_editor()
+
+	var sound_played: bool = false
+	has_editor_focused = false
+	for editor_id: String in editors.keys():
+		var info: SoundEditorInfo = editors[editor_id]
+		if not is_instance_valid(info.code_edit):
+			editors.erase(editor_id)
+			continue
+		if not sound_played:
+			sound_played = play_editor_sounds(editor_id, info)
 
 func _on_settings_changed() -> void:
 	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
@@ -88,7 +92,22 @@ func _on_settings_changed() -> void:
 
 		delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
 
-func initialize() -> void:
+func create_sound_player(action_type: ActionType, volume_multiplier: float = 1.0) -> AudioStreamPlayer:
+	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
+	player_data.volume_multiplier = volume_multiplier
+	player_data.player.volume_db = volume_db * player_data.volume_multiplier
+	add_child(player_data.player)
+	sound_player_datas[action_type] = player_data
+	return player_data.player
+
+func _initialize() -> void:
+	register_sound_settings()
+
+	# Find shader container after UI is fully loaded
+	get_tree().create_timer(1.0).timeout.connect(find_shader_editor_wrapper)
+	editor_settings.settings_changed.connect(_on_settings_changed)
+	
+	# Init Sounds
 	create_sound_player(ActionType.TYPING, 1.1)
 	create_sound_player(ActionType.SELECTING, 1.2)
 	create_sound_player(ActionType.SELECTING_WORD)
@@ -101,6 +120,10 @@ func initialize() -> void:
 	create_sound_player(ActionType.DELETING)
 	create_sound_player(ActionType.COPY)
 	create_sound_player(ActionType.PASTE, 1.3)
+	load_sounds()
+	
+	# Start the plugin basically
+	set_process(true)
 
 func load_sounds() -> void:
 	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3"))
@@ -181,20 +204,6 @@ func register_sound_settings() -> void:
 	else:
 		delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
 
-func _process(delta: float) -> void:
-	periodic_editor_scan(delta)
-	register_script_editor()
-
-	var sound_played: bool = false
-	has_editor_focused = false
-	for editor_id: String in editors.keys():
-		var info: SoundEditorInfo = editors[editor_id]
-		if not is_instance_valid(info.code_edit):
-			editors.erase(editor_id)
-			continue
-		if not sound_played:
-			sound_played = play_editor_sounds(editor_id, info)
-
 func periodic_editor_scan(delta: float) -> void:
 	# Check for new shader editors periodically
 	scan_timer += delta
@@ -231,6 +240,9 @@ func play_shader_editor_sounds() -> bool:
 
 func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 	var code_edit: CodeEdit = info.code_edit
+	if not code_edit:
+		return false
+	
 	if not has_editor_focused:
 		has_editor_focused = code_edit.has_focus()
 
@@ -337,7 +349,17 @@ func play_delete_animation(info: SoundEditorInfo) -> void:
 	falling_key.position = adjusted_pos
 	falling_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
 	info.code_edit.add_child(falling_key)
-
+	
+func play_key_zap_animation(info: SoundEditorInfo) -> void:
+	var deleted_chars = check_deleted_text(info)
+	for deleted_char in deleted_chars:
+		var zapping_key: KeyZap = KEY_ZAP.instantiate()
+		var line_height = info.code_edit.get_line_height()
+		var adjusted_pos = info.code_edit.get_caret_draw_pos() + Vector2(4, -line_height/2.0)
+		info.code_edit.add_child(zapping_key)
+		zapping_key.position = adjusted_pos
+		zapping_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
+	
 func play_sound(action_type: ActionType) -> void:
 	var data = sound_player_datas[action_type]
 	if data.enabled:
@@ -364,7 +386,7 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 		ActionType.DELETING:
 			play_sound(action_type)
 			if delete_animations_enabled:
-				play_delete_animation(info)
+				play_key_zap_animation(info)
 			return true
 		ActionType.SELECTING:
 			return handle_selection(code_edit, current_selection_length, new_selection, info)

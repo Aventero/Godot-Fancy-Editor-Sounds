@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3 uid="uid://c64shsx3ndd5"]
+
+[ext_resource type="Script" uid="uid://cvivhuxlgclr3" path="res://addons/fancy_editor_sounds/key_zap.gd" id="1_b73j5"]
+
+[node name="KeyZap" type="Node2D" node_paths=PackedStringArray("key_label")]
+script = ExtResource("1_b73j5")
+key_label = NodePath("Label")
+
+[node name="Label" type="Label" parent="."]
+offset_left = -5.0
+offset_top = -11.0
+offset_right = 35.0
+offset_bottom = 12.0
+text = "A"
+metadata/_edit_use_anchors_ = true
+
+[node name="Timer" type="Timer" parent="."]

@@ -27,3 +27,15 @@ func _init(_code_edit: CodeEdit) -> void:
 	previous_caret_pos = _code_edit.get_caret_draw_pos()
 	previous_line_count = _code_edit.get_line_count()
 	previous_selection = _code_edit.get_selected_text()
+
+func _to_string() -> String:
+	var info_text = "[SoundEditorInfo] " + str(code_edit)
+	info_text += "\nChar Count: " + str(char_count)
+	info_text += "\nCaret: Line " + str(caret_line) + ", Column " + str(caret_column)
+	info_text += "\nSelection Length: " + str(selection_length)
+	info_text += "\nHas Unselected: " + str(has_unselected)
+	info_text += "\nCurrent Selection: \"" + previous_selection + "\""
+	info_text += "\nPrevious Line: \"" + previous_line + "\""
+	info_text += "\nPrevious Line Count: " + str(previous_line_count)
+	return info_text
+	
