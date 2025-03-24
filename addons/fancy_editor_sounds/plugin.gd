@@ -40,19 +40,17 @@ var delete_animations_enabled: bool = true
 #endregion
 
 #region EDITOR SCANNING
-var primary_shader_wrapper = null
-var shader_editor_container = null
-var scan_timer: float = 0.0
-var scan_interval: float = 1.0
 var has_editor_focused: bool = false
 var editors: Dictionary[String, SoundEditorInfo] = {}
 #endregion
 
+var shader_tab_container: TabContainer
+
 func _enter_tree() -> void:
 	if not Engine.is_editor_hint():
 		return
-	
 	_initialize()
+	get_tree().create_timer(2.0).timeout.connect(find_shader_editor_container)
 
 func _shortcut_input(event: InputEvent) -> void:
 	if event is InputEventKey:
@@ -67,8 +65,7 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if not Engine.is_editor_hint():
 		return
-	
-	periodic_editor_scan(delta)
+
 	register_script_editor()
 
 	var sound_played: bool = false
@@ -111,7 +108,7 @@ func _initialize() -> void:
 	register_sound_settings()
 
 	# Find shader container after UI is fully loaded
-	get_tree().create_timer(1.0).timeout.connect(find_shader_editor_wrapper)
+	#
 	editor_settings.settings_changed.connect(_on_settings_changed)
 	
 	# Init Sounds
@@ -211,17 +208,6 @@ func register_sound_settings() -> void:
 	else:
 		delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
 
-func periodic_editor_scan(delta: float) -> void:
-	# Check for new shader editors periodically
-	scan_timer += delta
-	if scan_timer >= scan_interval:
-		scan_timer = 0.0
-
-		if shader_editor_container:
-			check_container_for_shader_editors(shader_editor_container)
-		elif not primary_shader_wrapper or not shader_editor_container:
-			find_shader_editor_wrapper()
-
 func register_script_editor() -> void:
 	var current_editor = EditorInterface.get_script_editor().get_current_editor()
 	if current_editor:
@@ -234,16 +220,6 @@ func register_script_editor() -> void:
 				add_new_editor(code_edit, editor_id)
 			else:
 				editors[editor_id].code_edit = code_edit
-
-func play_shader_editor_sounds() -> bool:
-	var sound_played = false
-	for editor_id in editors:
-		var editor_info: SoundEditorInfo = editors[editor_id]
-		sound_played = play_editor_sounds(editor_id, editor_info)
-		if sound_played:
-			break
-
-	return sound_played
 
 func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 	var code_edit: CodeEdit = info.code_edit
@@ -349,6 +325,9 @@ func check_deleted_text(info: SoundEditorInfo) -> String:
 	return deleted_text
 
 func play_delete_animation(info: SoundEditorInfo) -> void:
+	if not is_instance_valid(info.code_edit):
+		return
+	
 	var deleted_char = check_deleted_text(info)
 	var falling_key: KeyDrop = KEY_DROP.instantiate()
 	var line_height = info.code_edit.get_line_height()
@@ -358,6 +337,9 @@ func play_delete_animation(info: SoundEditorInfo) -> void:
 	info.code_edit.add_child(falling_key)
 	
 func play_key_zap_animation(info: SoundEditorInfo) -> void:
+	if not is_instance_valid(info.code_edit):
+		return
+	
 	var deleted_chars = check_deleted_text(info)
 	for deleted_char in deleted_chars:
 		var zapping_key: KeyZap = KEY_ZAP.instantiate()
@@ -456,55 +438,56 @@ func play_selection_sound(code_edit: CodeEdit, selection_length: int, new_select
 		info.selection_length = selection_length
 	return false
 
-func find_shader_editor_wrapper() -> void:
-	var base_control = EditorInterface.get_base_control()
+func find_shader_editor_container() -> void:
+	var base_control: Control = EditorInterface.get_base_control()
+	var shader_file_editor_node: Node = find_node_by_class_name(base_control, "ShaderFileEditor")
+	if shader_file_editor_node:
+		var parent: Node = shader_file_editor_node.get_parent()
+		var shader_create_node: Node = find_node_by_class_name(parent, "ShaderCreateDialog")
+		for child in shader_create_node.get_parent().get_children():
+			if child is TabContainer:
+				shader_tab_container = child
+				
+	if not shader_tab_container:
+		printerr("[Fancy Editor Sounds] Unable not find the shader tab container. (Sounds wont play inside shader editor)")
+		return
+	else:
+		shader_tab_container.tab_changed.connect(_on_shader_tab_changed)
+		initial_shader_editor_lookup(shader_tab_container)
 
-	# If no existing editors found, search through all WindowWrappers
-	var window_wrappers = []
-	find_nodes_by_class(base_control, "WindowWrapper", window_wrappers)
+func _on_shader_tab_changed(tab: int) -> void:
+	add_shader_edit(shader_tab_container, tab)
 
-	for wrapper in window_wrappers:
-		var tab_containers = []
-		find_nodes_by_class(wrapper, "TabContainer", tab_containers)
-		for container in tab_containers:
-			# Check for any hint this might be a shader container
-			if check_container_for_shader_editors(container):
-				primary_shader_wrapper = wrapper
-				shader_editor_container = container
-				return
+func find_node_by_class_name(node: Node, class_string: String) -> Node:
+	if node.get_class() == class_string:
+		return node;
+	for child in node.get_children():
+		var result: Node = find_node_by_class_name(child, class_string)
+		if result:
+			return result
+	return null
 
-# Check a specific container for shader editors
-func check_container_for_shader_editors(container: TabContainer) -> bool:
+func add_shader_edit(container: TabContainer, tab_number: int) -> void:
 	if not is_instance_valid(container):
-		return false
-
+		return
+	
+	var text_shader_editor = container.get_tab_control(tab_number)
+	if not text_shader_editor or "TextShaderEditor" not in text_shader_editor.name: 
+		return
+	
 	var previous_editors = editors.duplicate()
-	var found_any = false
+	
+	# Find the CodeEdit component(s) in this text_shader_editor
+	var code_edit: CodeEdit = find_node_by_class_name(text_shader_editor, "CodeEdit")
+	var editor_id = text_shader_editor.name + "_" + str(code_edit)
+	if not previous_editors.has(editor_id):
+		add_new_editor(code_edit, editor_id)
+	else:
+		editors[editor_id].code_edit = code_edit
+
+func initial_shader_editor_lookup(container: TabContainer) -> void:
+	if not is_instance_valid(container):
+		return
 
 	for i in range(container.get_tab_count()):
-		var tab_control = container.get_tab_control(i)
-		if not tab_control or "TextShaderEditor" not in tab_control.name: continue
-		found_any = true
-
-		# Find the CodeEdit component(s) in this tab
-		var code_edits = []
-		find_nodes_by_class(tab_control, "CodeEdit", code_edits)
-
-		for ids in range(code_edits.size()):
-			var code_edit = code_edits[ids]
-			var editor_id = tab_control.name + "_" + str(ids)
-
-			# Check if this is a new editor
-			if not previous_editors.has(editor_id):
-				add_new_editor(code_edit, editor_id)
-			else:
-				editors[editor_id].code_edit = code_edit
-
-	return found_any
-
-# Helper function to find nodes by class
-func find_nodes_by_class(node: Node, class_string: String, result: Array) -> void:
-	if node.get_class() == class_string:
-		result.push_back(node)
-	for child in node.get_children():
-		find_nodes_by_class(child, class_string, result)
+		add_shader_edit(container, i)

@@ -12,6 +12,7 @@ config_version=5
 
 config/name="Godot-Fancy-Editor-Sounds"
 config/features=PackedStringArray("4.4", "Forward Plus")
+boot_splash/image="uid://d2msro71qokdv"
 config/icon="res://icon.svg"
 
 [dotnet]

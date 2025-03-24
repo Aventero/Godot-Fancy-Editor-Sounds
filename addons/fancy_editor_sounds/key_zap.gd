@@ -10,10 +10,11 @@ var max_speed: float = 2000.0
 var steering_force: float = 40.0
 var arrival_radius: float = 200.0
 var lerp_speed: float = 20.0
+var was_set: bool = false
 
 func _ready() -> void:
 	set_process(false)
-	if not Engine.is_editor_hint():
+	if not Engine.is_editor_hint() && not was_set:
 		return
 
 func set_key(key: String, font_size: int) -> void:
@@ -26,9 +27,10 @@ func set_key(key: String, font_size: int) -> void:
 	$".".scale = Vector2(scale, scale)
 	
 	set_process(true)
+	was_set = true
 
 func _process(delta: float) -> void:
-	if not Engine.is_editor_hint():
+	if not Engine.is_editor_hint() && not was_set:
 		return
 		
 	current_pos = global_position
@@ -55,3 +57,9 @@ func _process(delta: float) -> void:
 	# reached target
 	if distance <= 5:
 		queue_free()
+
+func _on_timer_timeout() -> void:
+	if not Engine.is_editor_hint() && not was_set:
+		return
+	print("asd")
+	queue_free()
