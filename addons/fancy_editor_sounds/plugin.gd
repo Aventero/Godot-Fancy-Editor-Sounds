@@ -86,11 +86,18 @@ func _on_settings_changed() -> void:
 		volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
 
 		for player_data: SoundPlayerData in sound_player_datas.values():
-			var setting_name: String = SOUND_SETTINGS_PATH + player_data.action_name
+			var setting_enabled_path: String = SOUND_SETTINGS_PATH + player_data.action_name
 			player_data.player.volume_db = volume_db * player_data.volume_multiplier
-			player_data.enabled = editor_settings.get_setting(setting_name)
-
-		delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
+			
+			if editor_settings.has_setting(setting_enabled_path):
+				player_data.enabled = editor_settings.get_setting(setting_enabled_path)
+			else:
+				player_data.enabled = true
+			
+			if editor_settings.has_setting(DELETE_ANIMATION_PATH):
+				delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
+			else:
+				delete_animations_enabled = true
 
 func create_sound_player(action_type: ActionType, volume_multiplier: float = 1.0) -> AudioStreamPlayer:
 	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
