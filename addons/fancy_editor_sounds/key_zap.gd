@@ -61,5 +61,4 @@ func _process(delta: float) -> void:
 func _on_timer_timeout() -> void:
 	if not Engine.is_editor_hint() && not was_set:
 		return
-	print("asd")
 	queue_free()
