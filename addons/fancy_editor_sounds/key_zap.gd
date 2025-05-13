@@ -36,7 +36,6 @@ func set_key(key: String, font_size: int, sounds_plugin: FancyEditorSounds = nul
 func _process(delta: float) -> void:
 	if not Engine.is_editor_hint() && not was_set:
 		return
-		
 	current_pos = global_position
 	
 	var mouse_pos: Vector2 = get_global_mouse_position()

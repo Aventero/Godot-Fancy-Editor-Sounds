@@ -3,9 +3,9 @@ extends EditorPlugin
 class_name FancyEditorSounds
 
 #region SOUND
-const KEY_DROP: Resource = preload("res://addons/fancy_editor_sounds/key_drop.tscn")
-const KEY_ZAP: Resource = preload("res://addons/fancy_editor_sounds/key_zap.tscn")
-var sound_player_datas: Dictionary[ActionType, SoundPlayerData]
+var KEY_DROP: Resource
+var KEY_ZAP: Resource
+var sound_player_datas: Dictionary
 var typing_sounds: Array[Resource]
 enum ActionType {
 	NONE,
@@ -48,7 +48,7 @@ var standard_delete_animations_enabled: bool = true
 
 #region EDITOR SCANNING
 var has_editor_focused: bool = false
-var editors: Dictionary[String, SoundEditorInfo] = {}
+var editors: Dictionary = {}
 #endregion
 
 var shader_tab_container: TabContainer
@@ -115,7 +115,10 @@ func create_sound_player(action_type: ActionType, volume_multiplier: float = 1.0
 	return player_data.player
 
 func _initialize() -> void:
-
+	
+	KEY_DROP = load("res://addons/fancy_editor_sounds/key_drop.tscn")
+	KEY_ZAP = load("res://addons/fancy_editor_sounds/key_zap.tscn")
+	
 	# Find shader container after UI is fully loaded
 	editor_settings.settings_changed.connect(_on_settings_changed)
 	
