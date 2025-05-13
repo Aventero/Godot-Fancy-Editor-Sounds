@@ -90,7 +90,7 @@ func _on_settings_changed() -> void:
 		volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
 
 		for player_data: SoundPlayerData in sound_player_datas.values():
-			var setting_enabled_path: String = SOUND_SETTINGS_PATH + player_data.action_name + " sound"
+			var setting_enabled_path: String = SOUND_SETTINGS_PATH + player_data.action_name
 			player_data.player.volume_db = volume_db * player_data.volume_multiplier
 			
 			if editor_settings.has_setting(setting_enabled_path):
@@ -176,7 +176,7 @@ func _disable_plugin() -> void:
 	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
 		editor_settings.erase(SETTINGS_VOLUME_PATH)
 		for player_data: SoundPlayerData in sound_player_datas.values():
-			var sound_player_setting: String = SOUND_SETTINGS_PATH + player_data.action_name + " sound"
+			var sound_player_setting: String = SOUND_SETTINGS_PATH + player_data.action_name
 			if editor_settings.has_setting(sound_player_setting):
 				editor_settings.erase(sound_player_setting)
 		editor_settings.erase(DELETE_ANIMATION_PATH)
@@ -230,7 +230,7 @@ func register_sound_settings() -> void:
 	
 	# Setting for each sound
 	for player_data: SoundPlayerData in sound_player_datas.values():
-		var setting_name: String = SOUND_SETTINGS_PATH + player_data.action_name + " sound"
+		var setting_name: String = SOUND_SETTINGS_PATH + player_data.action_name
 		if not editor_settings.has_setting(setting_name):
 			editor_settings.set_setting(setting_name, true)
 			editor_settings.set_initial_value(setting_name, false, false)
