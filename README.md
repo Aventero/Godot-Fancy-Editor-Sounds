@@ -28,7 +28,7 @@ https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
 - Each **Sound and Animations** can be **turned on/off** seperately.
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/1dbe4cfc-b826-472f-ab32-b992b2735409" alt="Editor Settings">
+  <img src="https://github.com/user-attachments/assets/9db8f111-39b4-4852-8fbf-cdecc5818a8d" alt="Editor Settings">
 </div>
 
 ## Important notice
