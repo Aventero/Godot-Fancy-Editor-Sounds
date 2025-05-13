@@ -1,5 +1,6 @@
 @tool
 extends EditorPlugin
+class_name FancyEditorSounds
 
 #region SOUND
 const KEY_DROP: Resource = preload("res://addons/fancy_editor_sounds/key_drop.tscn")
@@ -19,7 +20,8 @@ enum ActionType {
 	REDO,
 	COPY,
 	PASTE,
-	SAVE
+	SAVE,
+	ZAP_REACHED
 }
 enum DeleteDirection {
 	LEFT,
@@ -34,9 +36,14 @@ const initial_volume_db: int = -35
 const SOUND_SETTINGS_PATH = "fancy_editor_sounds/"
 const SETTINGS_VOLUME_PATH = SOUND_SETTINGS_PATH + "volume_db"
 const DELETE_ANIMATION_PATH = SOUND_SETTINGS_PATH + "delete_animations"
+const DELETE_STANDARD_ANIMATION_PATH = DELETE_ANIMATION_PATH + " standard"
+const DELETE_ZAP_ANIMATION_PATH = DELETE_ANIMATION_PATH + " zap"
 var volume_db: int = initial_volume_db
 var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 var delete_animations_enabled: bool = true
+var zap_delete_animations_enabled: bool = true
+var zap_accumulator: int = 0
+var standard_delete_animations_enabled: bool = true
 #endregion
 
 #region EDITOR SCANNING
@@ -83,18 +90,21 @@ func _on_settings_changed() -> void:
 		volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
 
 		for player_data: SoundPlayerData in sound_player_datas.values():
-			var setting_enabled_path: String = SOUND_SETTINGS_PATH + player_data.action_name
+			var setting_enabled_path: String = SOUND_SETTINGS_PATH + player_data.action_name + " sound"
 			player_data.player.volume_db = volume_db * player_data.volume_multiplier
 			
 			if editor_settings.has_setting(setting_enabled_path):
 				player_data.enabled = editor_settings.get_setting(setting_enabled_path)
-			else:
-				player_data.enabled = true
 			
-			if editor_settings.has_setting(DELETE_ANIMATION_PATH):
-				delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
-			else:
-				delete_animations_enabled = true
+		if editor_settings.has_setting(DELETE_ANIMATION_PATH):
+			delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
+		
+		if editor_settings.has_setting(DELETE_STANDARD_ANIMATION_PATH):
+			standard_delete_animations_enabled = editor_settings.get_setting(DELETE_STANDARD_ANIMATION_PATH)
+		
+		if editor_settings.has_setting(DELETE_ZAP_ANIMATION_PATH):
+			zap_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_ANIMATION_PATH)
+			
 
 func create_sound_player(action_type: ActionType, volume_multiplier: float = 1.0) -> AudioStreamPlayer:
 	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
@@ -105,10 +115,8 @@ func create_sound_player(action_type: ActionType, volume_multiplier: float = 1.0
 	return player_data.player
 
 func _initialize() -> void:
-	register_sound_settings()
 
 	# Find shader container after UI is fully loaded
-	#
 	editor_settings.settings_changed.connect(_on_settings_changed)
 	
 	# Init Sounds
@@ -124,7 +132,10 @@ func _initialize() -> void:
 	create_sound_player(ActionType.DELETING)
 	create_sound_player(ActionType.COPY)
 	create_sound_player(ActionType.PASTE, 1.3)
+	create_sound_player(ActionType.ZAP_REACHED, 1.3)
 	load_sounds()
+	
+	register_sound_settings()
 	
 	# Start the plugin basically
 	set_process(true)
@@ -147,6 +158,7 @@ func load_sounds() -> void:
 	sound_player_datas[ActionType.SAVE].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/date-impact.wav")
 	sound_player_datas[ActionType.COPY].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
 	sound_player_datas[ActionType.PASTE].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
+	sound_player_datas[ActionType.ZAP_REACHED].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
 
 func add_new_editor(code_edit: CodeEdit, editor_id: String) -> void:
 	if not editors.has(editor_id):
@@ -161,10 +173,26 @@ func _disable_plugin() -> void:
 	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
 		editor_settings.erase(SETTINGS_VOLUME_PATH)
 		for player_data: SoundPlayerData in sound_player_datas.values():
-			var sound_player_setting: String = SOUND_SETTINGS_PATH + player_data.action_name
+			var sound_player_setting: String = SOUND_SETTINGS_PATH + player_data.action_name + " sound"
 			if editor_settings.has_setting(sound_player_setting):
 				editor_settings.erase(sound_player_setting)
 		editor_settings.erase(DELETE_ANIMATION_PATH)
+		editor_settings.erase(DELETE_STANDARD_ANIMATION_PATH)
+		editor_settings.erase(DELETE_ZAP_ANIMATION_PATH)
+
+func register_animation_setting(path: String, default_enabled: bool) -> bool:
+	# Delete Animation setting
+	if not editor_settings.has_setting(path):
+		editor_settings.set_setting(path, default_enabled)
+		editor_settings.set_initial_value(path, false, false)
+		editor_settings.add_property_info({
+			"name": path,
+			"type": TYPE_BOOL,
+			"hint": PROPERTY_HINT_NONE,
+			"hint_string": ""
+		})
+	
+	return editor_settings.get_setting(path)
 
 func register_sound_settings() -> void:
 	# Volume setting
@@ -181,12 +209,28 @@ func register_sound_settings() -> void:
 	else:
 		volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
 
+	delete_animations_enabled = register_animation_setting(DELETE_ANIMATION_PATH, true)
+	standard_delete_animations_enabled = register_animation_setting(DELETE_STANDARD_ANIMATION_PATH, true)
+	zap_delete_animations_enabled = register_animation_setting(DELETE_ZAP_ANIMATION_PATH, false)
+	
+	if not editor_settings.has_setting(DELETE_STANDARD_ANIMATION_PATH):
+		editor_settings.set_setting(DELETE_STANDARD_ANIMATION_PATH, true)
+		editor_settings.set_initial_value(DELETE_STANDARD_ANIMATION_PATH, false, false)
+		editor_settings.add_property_info({
+			"name": DELETE_STANDARD_ANIMATION_PATH,
+			"type": TYPE_BOOL,
+			"hint": PROPERTY_HINT_NONE,
+			"hint_string": ""
+		})
+	else:
+		delete_animations_enabled = editor_settings.get_setting(DELETE_STANDARD_ANIMATION_PATH)
+	
+	# Setting for each sound
 	for player_data: SoundPlayerData in sound_player_datas.values():
-		var setting_name: String = SOUND_SETTINGS_PATH + player_data.action_name
-
+		var setting_name: String = SOUND_SETTINGS_PATH + player_data.action_name + " sound"
 		if not editor_settings.has_setting(setting_name):
 			editor_settings.set_setting(setting_name, true)
-			editor_settings.set_initial_value(setting_name, false, false)  # Different value from true
+			editor_settings.set_initial_value(setting_name, false, false)
 			editor_settings.add_property_info({
 				"name": setting_name,
 				"type": TYPE_BOOL,
@@ -195,18 +239,6 @@ func register_sound_settings() -> void:
 			})
 		else:
 			player_data.enabled = editor_settings.get_setting(setting_name)
-
-	if not editor_settings.has_setting(DELETE_ANIMATION_PATH):
-		editor_settings.set_setting(DELETE_ANIMATION_PATH, true)
-		editor_settings.set_initial_value(DELETE_ANIMATION_PATH, false, false)  # Different value from true
-		editor_settings.add_property_info({
-			"name": DELETE_ANIMATION_PATH,
-			"type": TYPE_BOOL,
-			"hint": PROPERTY_HINT_NONE,
-			"hint_string": ""
-		})
-	else:
-		delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
 
 func register_script_editor() -> void:
 	var current_editor = EditorInterface.get_script_editor().get_current_editor()
@@ -269,7 +301,7 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 
 	if Input.is_action_just_pressed("ui_paste") and has_editor_focused:
 		action_type = ActionType.PASTE
-
+	
 	var sound_played: bool = handle_action(action_type, code_edit, current_selection_length, new_selection, info)
 	info.previous_caret_pos = code_edit.get_caret_draw_pos()
 	info.previous_text = current_text
@@ -285,6 +317,9 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 		info.selection_length = current_selection_length
 	else:
 		info.selection_length = 0
+	
+	if should_reset_zap_accumulator(action_type):
+		zap_accumulator = 0
 
 	return sound_played
 
@@ -347,12 +382,32 @@ func play_key_zap_animation(info: SoundEditorInfo) -> void:
 		var adjusted_pos = info.code_edit.get_caret_draw_pos() + Vector2(4, -line_height/2.0)
 		info.code_edit.add_child(zapping_key)
 		zapping_key.position = adjusted_pos
-		zapping_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
+		zapping_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"), self)
 	
-func play_sound(action_type: ActionType) -> void:
+func play_sound(action_type: ActionType, should_overwrite_playing: bool = true) -> void:
 	var data = sound_player_datas[action_type]
-	if data.enabled:
+	if not data.enabled:
+		return
+	
+	# Only play a sound if its not already playing
+	if not should_overwrite_playing:
+		if not data.player.playing:
+			data.player.play()
+			return
+	else:
 		data.player.play()
+
+func play_zap_sound() -> void:
+	zap_accumulator += 1
+	var accumulator_pitching = clamp(1 + float(zap_accumulator) / 200.0, 1.0, 2.0)
+	sound_player_datas[ActionType.ZAP_REACHED].player.pitch_scale = randf_range(0.875, 1.025) * accumulator_pitching
+	play_sound(ActionType.ZAP_REACHED, false)
+
+func should_reset_zap_accumulator(action_type: ActionType) -> bool:
+	match action_type:
+		ActionType.NONE, ActionType.SELECTING, ActionType.DESELECTING, ActionType.DELETING:
+			return false
+	return true
 
 func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selection_length: int, new_selection: String, info: SoundEditorInfo) -> bool:
 	match action_type:
@@ -374,8 +429,12 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 			return true
 		ActionType.DELETING:
 			play_sound(action_type)
+			# Delete Animations
 			if delete_animations_enabled:
-				play_key_zap_animation(info)
+				if zap_delete_animations_enabled:
+					play_key_zap_animation(info)
+				if standard_delete_animations_enabled: 
+					play_delete_animation(info)
 			return true
 		ActionType.SELECTING:
 			return handle_selection(code_edit, current_selection_length, new_selection, info)
@@ -387,7 +446,6 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 		ActionType.CARET_MOVING:
 			play_sound(action_type)
 			return true
-
 	return false
 
 func handle_selection(code_edit: CodeEdit, current_selection_length: int, new_selection: String, info: SoundEditorInfo) -> bool:

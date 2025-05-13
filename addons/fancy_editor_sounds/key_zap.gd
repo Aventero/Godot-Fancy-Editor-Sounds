@@ -11,13 +11,17 @@ var steering_force: float = 40.0
 var arrival_radius: float = 200.0
 var lerp_speed: float = 20.0
 var was_set: bool = false
+var editor_sounds: FancyEditorSounds = null
+var played_sound: bool = false
 
 func _ready() -> void:
 	set_process(false)
 	if not Engine.is_editor_hint() && not was_set:
 		return
 
-func set_key(key: String, font_size: int) -> void:
+func set_key(key: String, font_size: int, sounds_plugin: FancyEditorSounds = null) -> void:
+	editor_sounds = sounds_plugin
+	
 	var top_or_bottom: int = sign(global_position.direction_to(get_global_mouse_position())).y * -1
 	current_velocity = Vector2(1000 * randf_range(-0.5, 1.0), -2000 * randf_range(0.5, 1.0) * top_or_bottom)
 	current_pos = global_position
@@ -50,9 +54,14 @@ func _process(delta: float) -> void:
 		var steering: Vector2 = (desired_velocity - current_velocity).limit_length(steering_force)
 		current_velocity = (current_velocity + steering).limit_length(max_speed)
 		global_position += current_velocity * delta
-	
+		
 	if key_label != null and distance <= arrival_radius:
 		key_label.modulate.a = distance / arrival_radius
+	
+	if distance <= arrival_radius / 8.0:
+		if not played_sound:
+			played_sound = true
+			editor_sounds.play_zap_sound()
 	
 	# reached target
 	if distance <= 5:
