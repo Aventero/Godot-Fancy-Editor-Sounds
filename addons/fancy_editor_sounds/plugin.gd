@@ -21,7 +21,12 @@ enum ActionType {
 	COPY,
 	PASTE,
 	SAVE,
-	ZAP_REACHED
+	ZAP_REACHED,
+	BUTTON_ON,
+	BUTTON_OFF,
+	SLIDER_TICK,
+	HOVER,
+	SELECT_ITEM,
 }
 enum DeleteDirection {
 	LEFT,
@@ -49,9 +54,14 @@ var standard_delete_animations_enabled: bool = true
 #region EDITOR SCANNING
 var has_editor_focused: bool = false
 var editors: Dictionary = {}
+var shader_tab_container: TabContainer
 #endregion
 
-var shader_tab_container: TabContainer
+#region NORMAL_EDITOR
+var current_control: Control = null
+var current_hover_tree_item: TreeItem = null
+var current_hover_list_item: int = 0
+#endregion
 
 func _enter_tree() -> void:
 	if not Engine.is_editor_hint():
@@ -85,6 +95,66 @@ func _process(delta: float) -> void:
 		if not sound_played:
 			sound_played = play_editor_sounds(editor_id, info)
 
+func _input(event: InputEvent) -> void:
+	if not Engine.is_editor_hint():
+		return
+	await get_tree().process_frame
+	var base_control = EditorInterface.get_base_control()
+	var focused = base_control.get_viewport().gui_get_hovered_control()
+
+	# Focus switched
+	if is_instance_valid(focused) and current_control != focused:
+		current_control = focused
+		if current_control is Button or current_control is LineEdit:
+			sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
+			play_sound(ActionType.HOVER, false)
+	
+	if focused is Tree:
+		var tree_mouse_pos: Vector2 = focused.get_local_mouse_position()
+		var current_hovered_item: TreeItem = focused.get_item_at_position(tree_mouse_pos)
+		
+		# Play Hover sound
+		if is_instance_valid(current_hovered_item) and current_hover_tree_item != current_hovered_item:
+			current_hover_tree_item = current_hovered_item
+			sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
+			play_sound(ActionType.HOVER, false)
+		
+		# Play selection sound, only when actively hovered
+		if event is InputEventMouseButton and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT:
+			if is_instance_valid(focused.get_item_at_position(tree_mouse_pos)):
+				if current_hovered_item == focused.get_selected():
+					sound_player_datas[ActionType.SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.2)
+					play_sound(ActionType.SELECT_ITEM)
+				
+	if focused is ItemList:
+		var item_mouse_pos: Vector2 = focused.get_local_mouse_position()
+		var current_hovered_item: int  = focused.get_item_at_position(item_mouse_pos, true)
+		var is_hovering_over_any_item: bool = current_hovered_item != -1
+		var is_hovering_over_new_item: bool = is_hovering_over_any_item and current_hover_list_item != current_hovered_item
+		
+		# Play hover sound
+		if is_hovering_over_new_item:
+			current_hover_list_item = current_hovered_item
+			sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
+			play_sound(ActionType.HOVER, false)
+		
+		# Play selection sound, only when actively hovered
+		if event is InputEventMouseButton and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT:
+			if focused.is_anything_selected() and is_hovering_over_any_item:
+				if focused.get_item_at_position(item_mouse_pos) == focused.get_selected_items().get(0):
+					sound_player_datas[ActionType.SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.2)
+					play_sound(ActionType.SELECT_ITEM)
+		
+	if event is InputEventMouseButton and event.is_released() and event.button_index == MOUSE_BUTTON_LEFT:
+		if focused is Button:
+			if focused.button_pressed:
+				play_sound(ActionType.BUTTON_ON)
+			else:
+				play_sound(ActionType.BUTTON_OFF)
+		
+func play_button_click_sound() -> void:
+	play_sound(ActionType.COPY)
+
 func _on_settings_changed() -> void:
 	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
 		volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
@@ -104,14 +174,15 @@ func _on_settings_changed() -> void:
 		
 		if editor_settings.has_setting(DELETE_ZAP_ANIMATION_PATH):
 			zap_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_ANIMATION_PATH)
-			
 
-func create_sound_player(action_type: ActionType, volume_multiplier: float = 1.0) -> AudioStreamPlayer:
+
+func create_sound_player(action_type: ActionType, volume_multiplier, sound_path: String) -> AudioStreamPlayer:
 	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
 	player_data.volume_multiplier = volume_multiplier
 	player_data.player.volume_db = volume_db * player_data.volume_multiplier
 	add_child(player_data.player)
 	sound_player_datas[action_type] = player_data
+	sound_player_datas[action_type].player.stream = load(sound_path)
 	return player_data.player
 
 func _initialize() -> void:
@@ -123,45 +194,35 @@ func _initialize() -> void:
 	editor_settings.settings_changed.connect(_on_settings_changed)
 	
 	# Init Sounds
-	create_sound_player(ActionType.TYPING, 1.1)
-	create_sound_player(ActionType.SELECTING, 1.2)
-	create_sound_player(ActionType.SELECTING_WORD)
-	create_sound_player(ActionType.DESELECTING, 1.3)
-	create_sound_player(ActionType.SELECTING_ALL)
-	create_sound_player(ActionType.CARET_MOVING, 1.5)
-	create_sound_player(ActionType.REDO)
-	create_sound_player(ActionType.UNDO)
-	create_sound_player(ActionType.SAVE, 1.5)
-	create_sound_player(ActionType.DELETING)
-	create_sound_player(ActionType.COPY)
-	create_sound_player(ActionType.PASTE, 1.3)
-	create_sound_player(ActionType.ZAP_REACHED, 1.3)
-	load_sounds()
+	create_sound_player(ActionType.TYPING, 1.1, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
+	create_sound_player(ActionType.SELECTING, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
+	create_sound_player(ActionType.SELECTING_WORD, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-all.wav")
+	create_sound_player(ActionType.DESELECTING, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/deselect.wav")
+	create_sound_player(ActionType.SELECTING_ALL, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-word.wav")
+	create_sound_player(ActionType.CARET_MOVING, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/key-movement.mp3")
+	create_sound_player(ActionType.REDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
+	create_sound_player(ActionType.UNDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
+	create_sound_player(ActionType.SAVE, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/date-impact.wav")
+	create_sound_player(ActionType.DELETING, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-delete.mp3")
+	create_sound_player(ActionType.COPY, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.PASTE, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
+	create_sound_player(ActionType.ZAP_REACHED, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
+	create_sound_player(ActionType.BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
+	create_sound_player(ActionType.HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
+	create_sound_player(ActionType.SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
 	
+	load_typing_sounds()
 	register_sound_settings()
 	
 	# Start the plugin basically
 	set_process(true)
 
-func load_sounds() -> void:
+func load_typing_sounds() -> void:
 	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3"))
 	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-2.mp3"))
 	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-3.mp3"))
 	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-4.mp3"))
-	sound_player_datas[ActionType.TYPING].player.stream = typing_sounds[0]
-
-	sound_player_datas[ActionType.SELECTING].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	sound_player_datas[ActionType.SELECTING_ALL].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/select-word.wav")
-	sound_player_datas[ActionType.SELECTING_WORD].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/select-all.wav")
-	sound_player_datas[ActionType.DESELECTING].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/deselect.wav")
-	sound_player_datas[ActionType.DELETING].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/key-delete.mp3")
-	sound_player_datas[ActionType.UNDO].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
-	sound_player_datas[ActionType.REDO].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/key-confirm.mp3")
-	sound_player_datas[ActionType.CARET_MOVING].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/key-movement.mp3")
-	sound_player_datas[ActionType.SAVE].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/date-impact.wav")
-	sound_player_datas[ActionType.COPY].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
-	sound_player_datas[ActionType.PASTE].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
-	sound_player_datas[ActionType.ZAP_REACHED].player.stream = load("res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
 
 func add_new_editor(code_edit: CodeEdit, editor_id: String) -> void:
 	if not editors.has(editor_id):
@@ -215,18 +276,6 @@ func register_sound_settings() -> void:
 	delete_animations_enabled = register_animation_setting(DELETE_ANIMATION_PATH, true)
 	standard_delete_animations_enabled = register_animation_setting(DELETE_STANDARD_ANIMATION_PATH, true)
 	zap_delete_animations_enabled = register_animation_setting(DELETE_ZAP_ANIMATION_PATH, false)
-	
-	if not editor_settings.has_setting(DELETE_STANDARD_ANIMATION_PATH):
-		editor_settings.set_setting(DELETE_STANDARD_ANIMATION_PATH, true)
-		editor_settings.set_initial_value(DELETE_STANDARD_ANIMATION_PATH, false, false)
-		editor_settings.add_property_info({
-			"name": DELETE_STANDARD_ANIMATION_PATH,
-			"type": TYPE_BOOL,
-			"hint": PROPERTY_HINT_NONE,
-			"hint_string": ""
-		})
-	else:
-		delete_animations_enabled = editor_settings.get_setting(DELETE_STANDARD_ANIMATION_PATH)
 	
 	# Setting for each sound
 	for player_data: SoundPlayerData in sound_player_datas.values():
