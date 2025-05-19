@@ -22,12 +22,12 @@ enum ActionType {
 	PASTE,
 	SAVE,
 	ZAP_REACHED,
-	BUTTON_CLICK,
-	OPTION_BUTTON_ON,
-	OPTION_BUTTON_OFF,
-	SLIDER_TICK,
-	HOVER,
-	SELECT_ITEM,
+	INTERFACE_BUTTON_CLICK,
+	INTERFACE_BUTTON_ON,
+	INTERFACE_BUTTON_OFF,
+	INTERFACE_SLIDER_TICK,
+	INTERFACE_HOVER,
+	INTERFACE_SELECT_ITEM,
 }
 enum DeleteDirection {
 	LEFT,
@@ -53,8 +53,10 @@ const SETTINGS_VOLUME_PATH = SOUND_SETTINGS_PATH + "volume_db"
 const DELETE_ANIMATION_PATH = SOUND_SETTINGS_PATH + "delete_animations"
 const DELETE_STANDARD_ANIMATION_PATH = DELETE_ANIMATION_PATH + " standard"
 const DELETE_ZAP_ANIMATION_PATH = DELETE_ANIMATION_PATH + " zap"
+const DELETE_ZAP_TABBING_ANIMATION_PATH = DELETE_ZAP_ANIMATION_PATH + " tabbing"
 var delete_animations_enabled: bool = true
 var zap_delete_animations_enabled: bool = true
+var zap_tabbing_delete_animations_enabled: bool = true
 var zap_accumulator: int = 0
 var standard_delete_animations_enabled: bool = true
 var max_deleted_characters: int = 50
@@ -129,7 +131,7 @@ func handle_interface_input(event: InputEvent) -> void:
 	
 	# Handle button clicks
 	if event is InputEventMouseButton and event.is_released() and event.button_index == MOUSE_BUTTON_LEFT:
-		handle_button_click(focused, event)
+		handle_INTERFACE_BUTTON_CLICK(focused, event)
 
 func handle_focus_hover(focused: Control) -> void:
 	current_control = focused
@@ -172,7 +174,7 @@ func handle_item_list_interactions(item_list: ItemList, event: InputEvent) -> vo
 			if item_list.get_item_at_position(item_mouse_pos) == item_list.get_selected_items().get(0):
 				play_select_sound()
 
-func handle_button_click(control: Control, event: InputEvent) -> void:
+func handle_INTERFACE_BUTTON_CLICK(control: Control, event: InputEvent) -> void:
 	if control is CheckBox or control is OptionButton or control is CheckButton:
 		play_option_button_sound(control.button_pressed)
 		return
@@ -182,25 +184,25 @@ func handle_button_click(control: Control, event: InputEvent) -> void:
 
 # Helper methods for sound effects
 func play_hover_sound() -> void:
-	sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
-	play_sound(ActionType.HOVER, false)
+	sound_player_datas[ActionType.INTERFACE_HOVER].player.pitch_scale = randf_range(1.0, 1.1)
+	play_sound(ActionType.INTERFACE_HOVER, false)
 
 func play_select_sound() -> void:
-	sound_player_datas[ActionType.SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.1)
-	play_sound(ActionType.SELECT_ITEM)
+	sound_player_datas[ActionType.INTERFACE_SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.1)
+	play_sound(ActionType.INTERFACE_SELECT_ITEM)
 
 func play_option_button_sound(is_on: bool) -> void:
 	if is_on:
-		play_sound(ActionType.OPTION_BUTTON_ON)
+		play_sound(ActionType.INTERFACE_BUTTON_ON)
 	else:
-		play_sound(ActionType.OPTION_BUTTON_OFF)
+		play_sound(ActionType.INTERFACE_BUTTON_OFF)
 
 func play_button_sound(is_pressed: bool) -> void:
 	if is_pressed:
-		sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(1.1, 1.2)
+		sound_player_datas[ActionType.INTERFACE_BUTTON_CLICK].player.pitch_scale = randf_range(1.1, 1.2)
 	else:
-		sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(0.9, 1.0)
-	play_sound(ActionType.BUTTON_CLICK, true)
+		sound_player_datas[ActionType.INTERFACE_BUTTON_CLICK].player.pitch_scale = randf_range(0.9, 1.0)
+	play_sound(ActionType.INTERFACE_BUTTON_CLICK, true)
 
 
 func handle_tab_input(event: InputEvent) -> void:
@@ -244,6 +246,9 @@ func _on_settings_changed() -> void:
 		
 		if editor_settings.has_setting(DELETE_ZAP_ANIMATION_PATH):
 			zap_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_ANIMATION_PATH)
+			
+		if editor_settings.has_setting(DELETE_ZAP_TABBING_ANIMATION_PATH):
+			zap_tabbing_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_TABBING_ANIMATION_PATH)
 
 func create_sound_player(action_type: ActionType, volume_multiplier, sound_path: String) -> AudioStreamPlayer:
 	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
@@ -280,11 +285,11 @@ func _initialize() -> void:
 	create_sound_player(ActionType.COPY, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
 	create_sound_player(ActionType.PASTE, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
 	create_sound_player(ActionType.ZAP_REACHED, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	create_sound_player(ActionType.BUTTON_CLICK, 0.8, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
-	create_sound_player(ActionType.SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
-	create_sound_player(ActionType.OPTION_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
-	create_sound_player(ActionType.OPTION_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
-	create_sound_player(ActionType.HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_CLICK, 0.8, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
+	create_sound_player(ActionType.INTERFACE_SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
+	create_sound_player(ActionType.INTERFACE_HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
 	load_typing_sounds()
 	set_and_load_player_settings()
 	
@@ -316,6 +321,7 @@ func _disable_plugin() -> void:
 		editor_settings.erase(DELETE_ANIMATION_PATH)
 		editor_settings.erase(DELETE_STANDARD_ANIMATION_PATH)
 		editor_settings.erase(DELETE_ZAP_ANIMATION_PATH)
+		editor_settings.erase(DELETE_ZAP_TABBING_ANIMATION_PATH)
 
 func set_and_load_volume_settings() -> void:
 	# Volume setting
@@ -350,6 +356,7 @@ func set_and_load_animation_settings() -> void:
 	delete_animations_enabled = register_and_load_animation_setting(DELETE_ANIMATION_PATH, true)
 	standard_delete_animations_enabled = register_and_load_animation_setting(DELETE_STANDARD_ANIMATION_PATH, true)
 	zap_delete_animations_enabled = register_and_load_animation_setting(DELETE_ZAP_ANIMATION_PATH, false)
+	zap_tabbing_delete_animations_enabled = register_and_load_animation_setting(DELETE_ZAP_TABBING_ANIMATION_PATH, true)
 
 func set_and_load_player_settings() -> void:
 	# Setting for each sound
@@ -454,6 +461,9 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 
 func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
 	if tab_pressed:
+		if not zap_tabbing_delete_animations_enabled:
+			return ""
+		
 		# Ignore when Standard Animation
 		if animation_type == AnimationType.STANDARD: 
 			return ""
