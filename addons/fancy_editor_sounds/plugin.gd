@@ -192,7 +192,8 @@ func _initialize() -> void:
 	
 	# Find shader container after UI is fully loaded
 	editor_settings.settings_changed.connect(_on_settings_changed)
-	
+	set_and_load_animation_settings()
+	set_and_load_volume_settings()
 	# Init Sounds
 	create_sound_player(ActionType.TYPING, 1.1, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
 	create_sound_player(ActionType.SELECTING, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
@@ -211,9 +212,8 @@ func _initialize() -> void:
 	create_sound_player(ActionType.BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
 	create_sound_player(ActionType.HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
 	create_sound_player(ActionType.SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
-	
 	load_typing_sounds()
-	register_sound_settings()
+	set_and_load_player_settings()
 	
 	# Start the plugin basically
 	set_process(true)
@@ -244,7 +244,22 @@ func _disable_plugin() -> void:
 		editor_settings.erase(DELETE_STANDARD_ANIMATION_PATH)
 		editor_settings.erase(DELETE_ZAP_ANIMATION_PATH)
 
-func register_animation_setting(path: String, default_enabled: bool) -> bool:
+func set_and_load_volume_settings() -> void:
+	# Volume setting
+	if not editor_settings.has_setting(SETTINGS_VOLUME_PATH):
+		# Set the setting to a value DIFFERENT from the initial value
+		editor_settings.set_setting(SETTINGS_VOLUME_PATH, initial_volume_db)
+		editor_settings.set_initial_value(SETTINGS_VOLUME_PATH, initial_volume_db - 1, false)
+		editor_settings.add_property_info({
+			"name": SETTINGS_VOLUME_PATH,
+			"type": TYPE_FLOAT,
+			"hint": PROPERTY_HINT_RANGE,
+			"hint_string": "-80.0, 0.0, 1.0"
+		})
+	
+	volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
+
+func register_and_load_animation_setting(path: String, default_enabled: bool) -> bool:
 	# Delete Animation setting
 	if not editor_settings.has_setting(path):
 		editor_settings.set_setting(path, default_enabled)
@@ -258,25 +273,12 @@ func register_animation_setting(path: String, default_enabled: bool) -> bool:
 	
 	return editor_settings.get_setting(path)
 
-func register_sound_settings() -> void:
-	# Volume setting
-	if not editor_settings.has_setting(SETTINGS_VOLUME_PATH):
-		# Set the setting to a value DIFFERENT from the initial value
-		editor_settings.set_setting(SETTINGS_VOLUME_PATH, initial_volume_db)
-		editor_settings.set_initial_value(SETTINGS_VOLUME_PATH, initial_volume_db - 1, false)
-		editor_settings.add_property_info({
-			"name": SETTINGS_VOLUME_PATH,
-			"type": TYPE_FLOAT,
-			"hint": PROPERTY_HINT_RANGE,
-			"hint_string": "-80, 0, 1"
-		})
-	else:
-		volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
+func set_and_load_animation_settings() -> void:
+	delete_animations_enabled = register_and_load_animation_setting(DELETE_ANIMATION_PATH, true)
+	standard_delete_animations_enabled = register_and_load_animation_setting(DELETE_STANDARD_ANIMATION_PATH, true)
+	zap_delete_animations_enabled = register_and_load_animation_setting(DELETE_ZAP_ANIMATION_PATH, false)
 
-	delete_animations_enabled = register_animation_setting(DELETE_ANIMATION_PATH, true)
-	standard_delete_animations_enabled = register_animation_setting(DELETE_STANDARD_ANIMATION_PATH, true)
-	zap_delete_animations_enabled = register_animation_setting(DELETE_ZAP_ANIMATION_PATH, false)
-	
+func set_and_load_player_settings() -> void:
 	# Setting for each sound
 	for player_data: SoundPlayerData in sound_player_datas.values():
 		var setting_name: String = SOUND_SETTINGS_PATH + player_data.action_name
@@ -289,8 +291,8 @@ func register_sound_settings() -> void:
 				"hint": PROPERTY_HINT_NONE,
 				"hint_string": ""
 			})
-		else:
-			player_data.enabled = editor_settings.get_setting(setting_name)
+			
+		player_data.enabled = editor_settings.get_setting(setting_name)
 
 func register_script_editor() -> void:
 	var current_editor = EditorInterface.get_script_editor().get_current_editor()
