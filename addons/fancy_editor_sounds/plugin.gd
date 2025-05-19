@@ -53,13 +53,15 @@ const SETTINGS_VOLUME_PATH = SOUND_SETTINGS_PATH + "volume_db"
 const DELETE_ANIMATION_PATH = SOUND_SETTINGS_PATH + "delete_animations"
 const DELETE_STANDARD_ANIMATION_PATH = DELETE_ANIMATION_PATH + " standard"
 const DELETE_ZAP_ANIMATION_PATH = DELETE_ANIMATION_PATH + " zap"
+const DELETE_ZAP_MAX_ANIMATION_PATH = DELETE_ZAP_ANIMATION_PATH + " max deletions"
 const DELETE_ZAP_TABBING_ANIMATION_PATH = DELETE_ZAP_ANIMATION_PATH + " tabbing"
 var delete_animations_enabled: bool = true
 var zap_delete_animations_enabled: bool = true
 var zap_tabbing_delete_animations_enabled: bool = true
 var zap_accumulator: int = 0
 var standard_delete_animations_enabled: bool = true
-var max_deleted_characters: int = 50
+var initial_max_deleted_characters: int = 50
+var max_deleted_characters: int = initial_max_deleted_characters
 #endregion
 
 #region EDITOR SCANNING
@@ -247,6 +249,9 @@ func _on_settings_changed() -> void:
 		if editor_settings.has_setting(DELETE_ZAP_ANIMATION_PATH):
 			zap_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_ANIMATION_PATH)
 			
+		if editor_settings.has_setting(DELETE_ZAP_MAX_ANIMATION_PATH):
+			max_deleted_characters = editor_settings.get_setting(DELETE_ZAP_MAX_ANIMATION_PATH)
+		
 		if editor_settings.has_setting(DELETE_ZAP_TABBING_ANIMATION_PATH):
 			zap_tabbing_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_TABBING_ANIMATION_PATH)
 
@@ -322,6 +327,7 @@ func _disable_plugin() -> void:
 		editor_settings.erase(DELETE_STANDARD_ANIMATION_PATH)
 		editor_settings.erase(DELETE_ZAP_ANIMATION_PATH)
 		editor_settings.erase(DELETE_ZAP_TABBING_ANIMATION_PATH)
+		editor_settings.erase(DELETE_ZAP_MAX_ANIMATION_PATH)
 
 func set_and_load_volume_settings() -> void:
 	# Volume setting
@@ -357,6 +363,19 @@ func set_and_load_animation_settings() -> void:
 	standard_delete_animations_enabled = register_and_load_animation_setting(DELETE_STANDARD_ANIMATION_PATH, true)
 	zap_delete_animations_enabled = register_and_load_animation_setting(DELETE_ZAP_ANIMATION_PATH, false)
 	zap_tabbing_delete_animations_enabled = register_and_load_animation_setting(DELETE_ZAP_TABBING_ANIMATION_PATH, true)
+
+	if not editor_settings.has_setting(DELETE_ZAP_MAX_ANIMATION_PATH):
+		# Set the setting to a value DIFFERENT from the initial value
+		editor_settings.set_setting(DELETE_ZAP_MAX_ANIMATION_PATH, initial_max_deleted_characters)
+		editor_settings.set_initial_value(DELETE_ZAP_MAX_ANIMATION_PATH, initial_max_deleted_characters - 1, false)
+		editor_settings.add_property_info({
+			"name": DELETE_ZAP_MAX_ANIMATION_PATH,
+			"type": TYPE_INT,
+			"hint": PROPERTY_HINT_RANGE,
+			"hint_string": "0, 5000, 1"
+		})
+	
+	max_deleted_characters = editor_settings.get_setting(DELETE_ZAP_MAX_ANIMATION_PATH)
 
 func set_and_load_player_settings() -> void:
 	# Setting for each sound
