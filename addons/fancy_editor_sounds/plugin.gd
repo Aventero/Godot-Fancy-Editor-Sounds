@@ -422,7 +422,7 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 	if should_reset_zap_accumulator(action_type):
 		zap_accumulator = 0
 	tab_pressed = false
-	
+
 	return sound_played
 
 func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
@@ -446,7 +446,11 @@ func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) ->
 	# Line deletion
 	if info.code_edit.get_line_count() < info.previous_line_count:
 		if animation_type == AnimationType.ZAP:
-			return info.previous_selection
+			if info.previous_selection.length() > 0:
+				return info.previous_selection
+			else:
+				# Ctrl + X
+				return previous_line
 		else:
 			return ""
 
@@ -461,7 +465,6 @@ func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) ->
 		var chars_deleted = previous_line.length() - current_line.length()
 		if chars_deleted > 0:
 			return previous_line.substr(current_col, chars_deleted)
-
 	return ""
 
 func play_delete_animation(info: SoundEditorInfo) -> void:
@@ -476,12 +479,34 @@ func play_delete_animation(info: SoundEditorInfo) -> void:
 	falling_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
 	info.code_edit.add_child(falling_key)
 
+# Determines the base position for zap effects
+func get_base_position(info: SoundEditorInfo) -> Vector2:
+	# Check if there's a selection
+	var has_selection = info.code_edit.has_selection()
+	
+	if has_selection:
+		# Get selection information
+		var selection_from_line = info.code_edit.get_selection_from_line()
+		var selection_to_line = info.code_edit.get_selection_to_line()
+		
+		# Determine which line to use as the base (top of selection)
+		var base_line = selection_from_line
+		if selection_from_line > selection_to_line:
+			# Selection was made from bottom to top
+			base_line = selection_to_line
+			
+		# Get position at the top line of the selection
+		var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
+		return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
+	else:
+		# Use cursor position when there's no selection
+		return info.code_edit.get_caret_draw_pos()
+		
 func play_key_zap_animation(info: SoundEditorInfo) -> void:
 	if not is_instance_valid(info.code_edit):
 		return
-	
+
 	var deleted_chars: String = check_deleted_text(info, AnimationType.ZAP)
-	
 	# Handle multi-line text
 	var lines = deleted_chars.split("\n")
 	var line_height = info.code_edit.get_line_height()
@@ -489,17 +514,17 @@ func play_key_zap_animation(info: SoundEditorInfo) -> void:
 	# Determine the base position
 	var base_pos = Vector2.ZERO
 	
-	# For tabbing operations, we need to adjust the base position
-	if tab_pressed:
-			var current_line: int = info.code_edit.get_caret_line()
-			var rect = info.code_edit.get_rect_at_line_column(current_line, 0)
-			base_pos = rect.position + Vector2i(0, rect.size.y / 2)
-			print("base_pos:", base_pos)
+	# Check for conditions where we should use selection-based positioning:
+	# - Tab operations
+	# - Multi-line deletions
+	# - Previous selection had newlines
+	# - Line count decreased (likely a cut operation)
+	var is_likely_cut = info.code_edit.get_line_count() < info.previous_line_count
+	if tab_pressed or lines.size() > 1 or info.previous_selection.count("\n") > 0 or is_likely_cut:
+		base_pos = get_selection_base_position(info)
 	else:
-		# For normal deletions, use cursor position
+		# For normal single-line deletions, use cursor position
 		base_pos = info.code_edit.get_caret_draw_pos()
-		print("base_possss:", base_pos)
-		
 	
 	# First, collect all valid characters and their positions
 	var all_char_positions = []
@@ -521,7 +546,7 @@ func play_key_zap_animation(info: SoundEditorInfo) -> void:
 			
 			all_char_positions.append({
 				"char": line[char_idx],
-				"position": base_pos + Vector2i(x_offset, -line_height/2.0 + y_offset)
+				"position": base_pos + Vector2(x_offset, -line_height/2.0 + y_offset)
 			})
 	
 	# Randomly select max_deleted_characters from all the available positions
@@ -537,12 +562,26 @@ func play_key_zap_animation(info: SoundEditorInfo) -> void:
 	
 	# Create the zap effects
 	for char_info in char_positions:
-		print(char_info.char)
 		var zapping_key: KeyZap = KEY_ZAP.instantiate()
 		info.code_edit.add_child(zapping_key)
 		zapping_key.position = char_info.position
 		zapping_key.set_key(char_info.char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"), self)
+
+func get_selection_base_position(info: SoundEditorInfo) -> Vector2:
+	# Get selection information
+	var selection_from_line = info.code_edit.get_selection_from_line()
+	var selection_to_line = info.code_edit.get_selection_to_line()
 	
+	# Determine which line to use as the base (top of selection)
+	var base_line = selection_from_line
+	if selection_from_line > selection_to_line:
+		# Selection was made from bottom to top
+		base_line = selection_to_line
+	
+	# Get position at the top line of the selection
+	var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
+	return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
+
 func play_sound(action_type: ActionType, should_overwrite_playing: bool = true) -> void:
 	var data = sound_player_datas[action_type]
 	if not data.enabled:
