@@ -22,8 +22,9 @@ enum ActionType {
 	PASTE,
 	SAVE,
 	ZAP_REACHED,
-	BUTTON_ON,
-	BUTTON_OFF,
+	BUTTON_CLICK,
+	OPTION_BUTTON_ON,
+	OPTION_BUTTON_OFF,
 	SLIDER_TICK,
 	HOVER,
 	SELECT_ITEM,
@@ -34,21 +35,29 @@ enum DeleteDirection {
 	LINE,
 	SELECTION,
 }
+enum AnimationType {
+	STANDARD,
+	ZAP
+}
 #endregion
 
-#region SETTINGS
+#region SOUND SETTINGS
 const initial_volume_db: int = -35
 const SOUND_SETTINGS_PATH = "fancy_editor_sounds/"
+var volume_db: int = initial_volume_db
+var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
+#endregion
+
+#region ANIMATION SETTINGS
 const SETTINGS_VOLUME_PATH = SOUND_SETTINGS_PATH + "volume_db"
 const DELETE_ANIMATION_PATH = SOUND_SETTINGS_PATH + "delete_animations"
 const DELETE_STANDARD_ANIMATION_PATH = DELETE_ANIMATION_PATH + " standard"
 const DELETE_ZAP_ANIMATION_PATH = DELETE_ANIMATION_PATH + " zap"
-var volume_db: int = initial_volume_db
-var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 var delete_animations_enabled: bool = true
 var zap_delete_animations_enabled: bool = true
 var zap_accumulator: int = 0
 var standard_delete_animations_enabled: bool = true
+var max_deleted_characters: int = 50
 #endregion
 
 #region EDITOR SCANNING
@@ -61,6 +70,8 @@ var shader_tab_container: TabContainer
 var current_control: Control = null
 var current_hover_tree_item: TreeItem = null
 var current_hover_list_item: int = 0
+var tab_pressed: bool
+var tab_affected_lines = []
 #endregion
 
 func _enter_tree() -> void:
@@ -98,6 +109,11 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if not Engine.is_editor_hint():
 		return
+	
+	handle_tab_input(event)
+	handle_editor_input(event)
+
+func handle_editor_input(event: InputEvent) -> void:
 	await get_tree().process_frame
 	var base_control = EditorInterface.get_base_control()
 	var focused = base_control.get_viewport().gui_get_hovered_control()
@@ -108,7 +124,7 @@ func _input(event: InputEvent) -> void:
 		if current_control is Button or current_control is LineEdit:
 			sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
 			play_sound(ActionType.HOVER, false)
-	
+			
 	if focused is Tree:
 		var tree_mouse_pos: Vector2 = focused.get_local_mouse_position()
 		var current_hovered_item: TreeItem = focused.get_item_at_position(tree_mouse_pos)
@@ -144,16 +160,44 @@ func _input(event: InputEvent) -> void:
 				if focused.get_item_at_position(item_mouse_pos) == focused.get_selected_items().get(0):
 					sound_player_datas[ActionType.SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.2)
 					play_sound(ActionType.SELECT_ITEM)
-		
+	
+	# CLICKING
 	if event is InputEventMouseButton and event.is_released() and event.button_index == MOUSE_BUTTON_LEFT:
+		if focused is CheckBox or focused is OptionButton or focused is CheckButton:
+			if focused.button_pressed:
+				play_sound(ActionType.OPTION_BUTTON_ON)
+			else:
+				play_sound(ActionType.OPTION_BUTTON_OFF)
+			return
 		if focused is Button:
 			if focused.button_pressed:
-				play_sound(ActionType.BUTTON_ON)
+				sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(1.1, 1.2)
+				play_sound(ActionType.BUTTON_CLICK, true)
 			else:
-				play_sound(ActionType.BUTTON_OFF)
+				sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(0.9, 1.0)
+				play_sound(ActionType.BUTTON_CLICK, true)
+
+func handle_tab_input(event: InputEvent) -> void:
+	# Add tab key detection near the beginning of the function
+	if event is InputEventKey and event.pressed and event.keycode == KEY_TAB and has_editor_focused:
+		tab_pressed = true
+		tab_affected_lines = []
 		
-func play_button_click_sound() -> void:
-	play_sound(ActionType.COPY)
+		# Find which editor is focused
+		for editor_id in editors:
+			var info: SoundEditorInfo = editors[editor_id]
+			if is_instance_valid(info.code_edit) and info.code_edit.has_focus():
+				# Store the affected lines
+				if info.code_edit.has_selection():
+					var start_line = info.code_edit.get_selection_from_line()
+					var end_line = info.code_edit.get_selection_to_line()
+					
+					for line in range(start_line, end_line + 1):
+						tab_affected_lines.append(info.code_edit.get_line(line))
+				else:
+					# No selection, just the current line
+					tab_affected_lines.append(info.code_edit.get_line(info.code_edit.get_caret_line()))
+				break
 
 func _on_settings_changed() -> void:
 	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
@@ -175,7 +219,6 @@ func _on_settings_changed() -> void:
 		if editor_settings.has_setting(DELETE_ZAP_ANIMATION_PATH):
 			zap_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_ANIMATION_PATH)
 
-
 func create_sound_player(action_type: ActionType, volume_multiplier, sound_path: String) -> AudioStreamPlayer:
 	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
 	player_data.volume_multiplier = volume_multiplier
@@ -192,8 +235,11 @@ func _initialize() -> void:
 	
 	# Find shader container after UI is fully loaded
 	editor_settings.settings_changed.connect(_on_settings_changed)
+	
+	# Set or Load settings
 	set_and_load_animation_settings()
 	set_and_load_volume_settings()
+	
 	# Init Sounds
 	create_sound_player(ActionType.TYPING, 1.1, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
 	create_sound_player(ActionType.SELECTING, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
@@ -208,8 +254,9 @@ func _initialize() -> void:
 	create_sound_player(ActionType.COPY, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
 	create_sound_player(ActionType.PASTE, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
 	create_sound_player(ActionType.ZAP_REACHED, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	create_sound_player(ActionType.BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
-	create_sound_player(ActionType.BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
+	create_sound_player(ActionType.BUTTON_CLICK, 0.85, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
+	create_sound_player(ActionType.OPTION_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.OPTION_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
 	create_sound_player(ActionType.HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
 	create_sound_player(ActionType.SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
 	load_typing_sounds()
@@ -374,69 +421,127 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 	
 	if should_reset_zap_accumulator(action_type):
 		zap_accumulator = 0
-
+	tab_pressed = false
+	
 	return sound_played
 
-func check_deleted_text(info: SoundEditorInfo) -> String:
-	var deleted_text = ""
+func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
+	if tab_pressed:
+		# Ignore when Standard Animation
+		if animation_type == AnimationType.STANDARD: 
+			return ""
+			
+		# Single Line Tabbed
+		if tab_affected_lines.size() == 1: 
+			return tab_affected_lines[0]
+		
+		# Multible lines Tabbed
+		return "\n".join(tab_affected_lines)
+	
 	var current_line_pos: int = info.code_edit.get_caret_line()
 	var previous_line: String = info.previous_line
 	var current_line: String = info.code_edit.get_line(current_line_pos)
 	var current_col = info.code_edit.get_caret_column()
-	var current_lines: int = info.code_edit.get_line_count()
 
-	if info.caret_line == current_line_pos:
-		if current_line.length() != previous_line.length():
-			var chars_deleted = previous_line.length() - current_line.length()
-			var dir: DeleteDirection = DeleteDirection.LINE
-			if current_col < info.caret_column:
-				dir = DeleteDirection.LEFT
-			if current_col > info.caret_column:
-				dir = DeleteDirection.RIGHT
-			if current_lines < info.previous_line_count:
-				dir = DeleteDirection.LINE
+	# Line deletion
+	if info.code_edit.get_line_count() < info.previous_line_count:
+		if animation_type == AnimationType.ZAP:
+			return info.previous_selection
+		else:
+			return ""
 
-			var deleted_lines: int = abs(info.previous_line_count - current_lines)
-			if current_col == info.caret_column && deleted_lines == 0:
-				dir = DeleteDirection.SELECTION
+	# Backspace Delete
+	if current_col < info.caret_column:
+		var deletion_start = current_col
+		var deletion_end = info.caret_column
+		return previous_line.substr(deletion_start, deletion_end - deletion_start)
 
-			match dir:
-				DeleteDirection.SELECTION:
-					deleted_text = info.previous_selection
-				DeleteDirection.LINE:
-					deleted_text = ""
-				DeleteDirection.LEFT:
-					var start_pos = current_col
-					deleted_text = previous_line.substr(start_pos, chars_deleted)
-				DeleteDirection.RIGHT:
-					deleted_text = previous_line.substr(current_col, chars_deleted)
+	# Delete key
+	if current_col == info.caret_column:
+		var chars_deleted = previous_line.length() - current_line.length()
+		if chars_deleted > 0:
+			return previous_line.substr(current_col, chars_deleted)
 
-	return deleted_text
+	return ""
 
 func play_delete_animation(info: SoundEditorInfo) -> void:
 	if not is_instance_valid(info.code_edit):
 		return
 	
-	var deleted_char = check_deleted_text(info)
+	var deleted_char = check_deleted_text(info, AnimationType.STANDARD)
 	var falling_key: KeyDrop = KEY_DROP.instantiate()
 	var line_height = info.code_edit.get_line_height()
 	var adjusted_pos = info.code_edit.get_caret_draw_pos() + Vector2(4, -line_height/2.0)
 	falling_key.position = adjusted_pos
 	falling_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
 	info.code_edit.add_child(falling_key)
-	
+
 func play_key_zap_animation(info: SoundEditorInfo) -> void:
 	if not is_instance_valid(info.code_edit):
 		return
 	
-	var deleted_chars = check_deleted_text(info)
-	for deleted_char in deleted_chars:
+	var deleted_chars: String = check_deleted_text(info, AnimationType.ZAP)
+	
+	# Handle multi-line text
+	var lines = deleted_chars.split("\n")
+	var line_height = info.code_edit.get_line_height()
+	
+	# Determine the base position
+	var base_pos = Vector2.ZERO
+	
+	# For tabbing operations, we need to adjust the base position
+	if tab_pressed:
+			var current_line: int = info.code_edit.get_caret_line()
+			var rect = info.code_edit.get_rect_at_line_column(current_line, 0)
+			base_pos = rect.position + Vector2i(0, rect.size.y / 2)
+			print("base_pos:", base_pos)
+	else:
+		# For normal deletions, use cursor position
+		base_pos = info.code_edit.get_caret_draw_pos()
+		print("base_possss:", base_pos)
+		
+	
+	# First, collect all valid characters and their positions
+	var all_char_positions = []
+	
+	# Calculate positions for each character across all lines
+	for line_idx in range(lines.size()):
+		var line = lines[line_idx]
+		var y_offset = line_idx * line_height
+		
+		# Calculate x positions across the line width
+		for char_idx in range(line.length()):
+			if line[char_idx] == " " or line[char_idx] == "\t" or line[char_idx] == "\n" or line[char_idx] == "\r":
+				continue
+				
+			# Calculate a position for this character
+			var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
+			var char_width = font_size * 0.6  # Approximate character width
+			var x_offset = char_idx * char_width
+			
+			all_char_positions.append({
+				"char": line[char_idx],
+				"position": base_pos + Vector2i(x_offset, -line_height/2.0 + y_offset)
+			})
+	
+	# Randomly select max_deleted_characters from all the available positions
+	var char_positions = []
+	var total_chars = min(all_char_positions.size(), max_deleted_characters)
+	
+	if all_char_positions.size() > max_deleted_characters:
+		all_char_positions.shuffle()
+		for i in range(total_chars):
+			char_positions.append(all_char_positions[i])
+	else:
+		char_positions = all_char_positions
+	
+	# Create the zap effects
+	for char_info in char_positions:
+		print(char_info.char)
 		var zapping_key: KeyZap = KEY_ZAP.instantiate()
-		var line_height = info.code_edit.get_line_height()
-		var adjusted_pos = info.code_edit.get_caret_draw_pos() + Vector2(4, -line_height/2.0)
 		info.code_edit.add_child(zapping_key)
-		zapping_key.position = adjusted_pos
-		zapping_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"), self)
+		zapping_key.position = char_info.position
+		zapping_key.set_key(char_info.char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"), self)
 	
 func play_sound(action_type: ActionType, should_overwrite_playing: bool = true) -> void:
 	var data = sound_player_datas[action_type]
