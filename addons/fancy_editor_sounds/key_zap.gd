@@ -23,7 +23,7 @@ func set_key(key: String, font_size: int, sounds_plugin: FancyEditorSounds = nul
 	editor_sounds = sounds_plugin
 	
 	var top_or_bottom: int = sign(global_position.direction_to(get_global_mouse_position())).y * -1
-	current_velocity = Vector2(1000 * randf_range(-0.5, 1.0), -2000 * randf_range(0.5, 1.0) * top_or_bottom)
+	current_velocity = Vector2(100 * randf_range(-1.0, 1.0), -2000 * randf_range(0.5, 1.0) * top_or_bottom)
 	current_pos = global_position
 	
 	key_label.text = key

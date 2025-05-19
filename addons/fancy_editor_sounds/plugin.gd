@@ -66,7 +66,7 @@ var editors: Dictionary = {}
 var shader_tab_container: TabContainer
 #endregion
 
-#region NORMAL_EDITOR
+#region EDITOR INTERFACE
 var current_control: Control = null
 var current_hover_tree_item: TreeItem = null
 var current_hover_list_item: int = 0
@@ -111,71 +111,97 @@ func _input(event: InputEvent) -> void:
 		return
 	
 	handle_tab_input(event)
-	handle_editor_input(event)
+	handle_interface_input(event)
 
-func handle_editor_input(event: InputEvent) -> void:
+func handle_interface_input(event: InputEvent) -> void:
 	await get_tree().process_frame
 	var base_control = EditorInterface.get_base_control()
 	var focused = base_control.get_viewport().gui_get_hovered_control()
-
-	# Focus switched
-	if is_instance_valid(focused) and current_control != focused:
-		current_control = focused
-		if current_control is Button or current_control is LineEdit:
-			sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
-			play_sound(ActionType.HOVER, false)
-			
-	if focused is Tree:
-		var tree_mouse_pos: Vector2 = focused.get_local_mouse_position()
-		var current_hovered_item: TreeItem = focused.get_item_at_position(tree_mouse_pos)
-		
-		# Play Hover sound
-		if is_instance_valid(current_hovered_item) and current_hover_tree_item != current_hovered_item:
-			current_hover_tree_item = current_hovered_item
-			sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
-			play_sound(ActionType.HOVER, false)
-		
-		# Play selection sound, only when actively hovered
-		if event is InputEventMouseButton and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT:
-			if is_instance_valid(focused.get_item_at_position(tree_mouse_pos)):
-				if current_hovered_item == focused.get_selected():
-					sound_player_datas[ActionType.SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.2)
-					play_sound(ActionType.SELECT_ITEM)
-				
-	if focused is ItemList:
-		var item_mouse_pos: Vector2 = focused.get_local_mouse_position()
-		var current_hovered_item: int  = focused.get_item_at_position(item_mouse_pos, true)
-		var is_hovering_over_any_item: bool = current_hovered_item != -1
-		var is_hovering_over_new_item: bool = is_hovering_over_any_item and current_hover_list_item != current_hovered_item
-		
-		# Play hover sound
-		if is_hovering_over_new_item:
-			current_hover_list_item = current_hovered_item
-			sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
-			play_sound(ActionType.HOVER, false)
-		
-		# Play selection sound, only when actively hovered
-		if event is InputEventMouseButton and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT:
-			if focused.is_anything_selected() and is_hovering_over_any_item:
-				if focused.get_item_at_position(item_mouse_pos) == focused.get_selected_items().get(0):
-					sound_player_datas[ActionType.SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.2)
-					play_sound(ActionType.SELECT_ITEM)
 	
-	# CLICKING
+	# Handle focus switching
+	if is_instance_valid(focused) and current_control != focused:
+		handle_focus_hover(focused)
+	
+	if focused is Tree:
+		handle_tree_interactions(focused, event)
+	elif focused is ItemList:
+		handle_item_list_interactions(focused, event)
+	
+	# Handle button clicks
 	if event is InputEventMouseButton and event.is_released() and event.button_index == MOUSE_BUTTON_LEFT:
-		if focused is CheckBox or focused is OptionButton or focused is CheckButton:
-			if focused.button_pressed:
-				play_sound(ActionType.OPTION_BUTTON_ON)
-			else:
-				play_sound(ActionType.OPTION_BUTTON_OFF)
-			return
-		if focused is Button:
-			if focused.button_pressed:
-				sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(1.1, 1.2)
-				play_sound(ActionType.BUTTON_CLICK, true)
-			else:
-				sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(0.9, 1.0)
-				play_sound(ActionType.BUTTON_CLICK, true)
+		handle_button_click(focused, event)
+
+func handle_focus_hover(focused: Control) -> void:
+	current_control = focused
+	if current_control is Button or current_control is LineEdit:
+		play_hover_sound()
+
+func handle_tree_interactions(tree: Tree, event: InputEvent) -> void:
+	var tree_mouse_pos: Vector2 = tree.get_local_mouse_position()
+	var current_hovered_item: TreeItem = tree.get_item_at_position(tree_mouse_pos)
+	
+	# Handle hover state changes
+	if current_hovered_item != current_hover_tree_item:
+		current_hover_tree_item = current_hovered_item
+		
+		# Play sound if valid
+		if is_instance_valid(current_hovered_item):
+			play_hover_sound()
+	
+	# Play selection sound, only when actively hovered
+	if event is InputEventMouseButton and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT:
+		if is_instance_valid(tree.get_item_at_position(tree_mouse_pos)):
+			if current_hovered_item == tree.get_selected():
+				play_select_sound()
+
+func handle_item_list_interactions(item_list: ItemList, event: InputEvent) -> void:
+	var item_mouse_pos: Vector2 = item_list.get_local_mouse_position()
+	var current_hovered_item: int = item_list.get_item_at_position(item_mouse_pos, true)
+	
+	# Handle hover state changes
+	if current_hovered_item != current_hover_list_item:
+		current_hover_list_item = current_hovered_item
+		
+		# Play sound if valid
+		if current_hovered_item != -1:
+			play_hover_sound()
+	
+	# Play selection sound, only when actively hovered
+	if event is InputEventMouseButton and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT:
+		if item_list.is_anything_selected() and current_hovered_item != -1:
+			if item_list.get_item_at_position(item_mouse_pos) == item_list.get_selected_items().get(0):
+				play_select_sound()
+
+func handle_button_click(control: Control, event: InputEvent) -> void:
+	if control is CheckBox or control is OptionButton or control is CheckButton:
+		play_option_button_sound(control.button_pressed)
+		return
+	
+	if control is Button:
+		play_button_sound(control.button_pressed)
+
+# Helper methods for sound effects
+func play_hover_sound() -> void:
+	sound_player_datas[ActionType.HOVER].player.pitch_scale = randf_range(1.0, 1.1)
+	play_sound(ActionType.HOVER, false)
+
+func play_select_sound() -> void:
+	sound_player_datas[ActionType.SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.1)
+	play_sound(ActionType.SELECT_ITEM)
+
+func play_option_button_sound(is_on: bool) -> void:
+	if is_on:
+		play_sound(ActionType.OPTION_BUTTON_ON)
+	else:
+		play_sound(ActionType.OPTION_BUTTON_OFF)
+
+func play_button_sound(is_pressed: bool) -> void:
+	if is_pressed:
+		sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(1.1, 1.2)
+	else:
+		sound_player_datas[ActionType.BUTTON_CLICK].player.pitch_scale = randf_range(0.9, 1.0)
+	play_sound(ActionType.BUTTON_CLICK, true)
+
 
 func handle_tab_input(event: InputEvent) -> void:
 	# Add tab key detection near the beginning of the function
@@ -254,11 +280,11 @@ func _initialize() -> void:
 	create_sound_player(ActionType.COPY, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
 	create_sound_player(ActionType.PASTE, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
 	create_sound_player(ActionType.ZAP_REACHED, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	create_sound_player(ActionType.BUTTON_CLICK, 0.85, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
+	create_sound_player(ActionType.BUTTON_CLICK, 0.8, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
+	create_sound_player(ActionType.SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
 	create_sound_player(ActionType.OPTION_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
 	create_sound_player(ActionType.OPTION_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
 	create_sound_player(ActionType.HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
-	create_sound_player(ActionType.SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
 	load_typing_sounds()
 	set_and_load_player_settings()
 	
@@ -346,9 +372,10 @@ func register_script_editor() -> void:
 	if current_editor:
 		var code_edit = current_editor.get_base_editor()
 		if code_edit:
-			# Use a consistent ID for the script editor
-			var editor_id = "script_editor"
-
+			# Create unique ID for each script editor
+			var script_path = EditorInterface.get_script_editor().get_current_script().resource_path
+			var editor_id = "script_editor_" + script_path
+			
 			if not editors.has(editor_id):
 				add_new_editor(code_edit, editor_id)
 			else:
@@ -445,6 +472,10 @@ func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) ->
 
 	# Line deletion
 	if info.code_edit.get_line_count() < info.previous_line_count:
+		# Backspacing at beginning of line
+		if current_col > 0 and info.caret_line > current_line_pos:
+			return "\n"
+		
 		if animation_type == AnimationType.ZAP:
 			if info.previous_selection.length() > 0:
 				return info.previous_selection
@@ -479,108 +510,91 @@ func play_delete_animation(info: SoundEditorInfo) -> void:
 	falling_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
 	info.code_edit.add_child(falling_key)
 
-# Determines the base position for zap effects
-func get_base_position(info: SoundEditorInfo) -> Vector2:
-	# Check if there's a selection
-	var has_selection = info.code_edit.has_selection()
+func get_selection_base_position(info: SoundEditorInfo) -> Vector2:
+	var selection_from_line = info.code_edit.get_selection_from_line()
+	var selection_to_line = info.code_edit.get_selection_to_line()
 	
-	if has_selection:
-		# Get selection information
-		var selection_from_line = info.code_edit.get_selection_from_line()
-		var selection_to_line = info.code_edit.get_selection_to_line()
-		
-		# Determine which line to use as the base (top of selection)
-		var base_line = selection_from_line
-		if selection_from_line > selection_to_line:
-			# Selection was made from bottom to top
-			base_line = selection_to_line
-			
-		# Get position at the top line of the selection
-		var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
-		return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
-	else:
-		# Use cursor position when there's no selection
-		return info.code_edit.get_caret_draw_pos()
-		
+	# Which is the base line? (Top or bottom)
+	var base_line = selection_from_line
+	if selection_from_line > selection_to_line:
+		# Selection from bottom to top
+		base_line = selection_to_line
+	
+	var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
+	return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
+	
+	
 func play_key_zap_animation(info: SoundEditorInfo) -> void:
 	if not is_instance_valid(info.code_edit):
 		return
-
+	
 	var deleted_chars: String = check_deleted_text(info, AnimationType.ZAP)
-	# Handle multi-line text
+	if deleted_chars.is_empty():
+		return
+	
+	var base_pos = get_animation_base_position(info, deleted_chars)
+	var all_char_positions = calculate_char_positions(info, deleted_chars, base_pos)
+	spawn_zap_characters(info, all_char_positions)
+
+func get_animation_base_position(info: SoundEditorInfo, deleted_chars: String) -> Vector2:
+	var lines = deleted_chars.split("\n")
+	var is_likely_cut = info.code_edit.get_line_count() < info.previous_line_count
+	
+	if tab_pressed or lines.size() > 1 or is_likely_cut:
+		return get_selection_base_position(info)
+	else:
+		return info.code_edit.get_caret_draw_pos()
+
+func calculate_char_positions(info: SoundEditorInfo, deleted_chars: String, base_pos: Vector2) -> Array:
 	var lines = deleted_chars.split("\n")
 	var line_height = info.code_edit.get_line_height()
+	var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
+	var char_width = font_size * 0.6
+	var tab_width = info.code_edit.get_tab_size() * char_width
 	
-	# Determine the base position
-	var base_pos = Vector2.ZERO
-	
-	# Check for conditions where we should use selection-based positioning:
-	# - Tab operations
-	# - Multi-line deletions
-	# - Previous selection had newlines
-	# - Line count decreased (likely a cut operation)
-	var is_likely_cut = info.code_edit.get_line_count() < info.previous_line_count
-	if tab_pressed or lines.size() > 1 or info.previous_selection.count("\n") > 0 or is_likely_cut:
-		base_pos = get_selection_base_position(info)
-	else:
-		# For normal single-line deletions, use cursor position
-		base_pos = info.code_edit.get_caret_draw_pos()
-	
-	# First, collect all valid characters and their positions
-	var all_char_positions = []
-	
-	# Calculate positions for each character across all lines
+	var char_positions = []
+	var valid_char_count = 0
 	for line_idx in range(lines.size()):
 		var line = lines[line_idx]
 		var y_offset = line_idx * line_height
+		var current_x_offset = 0.0
 		
-		# Calculate x positions across the line width
 		for char_idx in range(line.length()):
-			if line[char_idx] == " " or line[char_idx] == "\t" or line[char_idx] == "\n" or line[char_idx] == "\r":
-				continue
-				
-			# Calculate a position for this character
-			var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
-			var char_width = font_size * 0.6  # Approximate character width
-			var x_offset = char_idx * char_width
+			var character = line[char_idx]
 			
-			all_char_positions.append({
-				"char": line[char_idx],
-				"position": base_pos + Vector2(x_offset, -line_height/2.0 + y_offset)
-			})
+			if character == "\t":
+				current_x_offset += tab_width
+				continue
+			elif character == " " or character == "\n" or character == "\r":
+				current_x_offset += char_width
+				continue
+			
+			valid_char_count += 1
+			if valid_char_count <= max_deleted_characters:
+				char_positions.append({
+					"char": character,
+					"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
+				})
+			else:
+				# Reached max deleted, set random char indexes for remaining chars
+				var random_idx = randi() % valid_char_count
+				if random_idx < max_deleted_characters:
+					char_positions[random_idx] = {
+						"char": character,
+						"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
+					}
+			
+			current_x_offset += char_width
 	
-	# Randomly select max_deleted_characters from all the available positions
-	var char_positions = []
-	var total_chars = min(all_char_positions.size(), max_deleted_characters)
-	
-	if all_char_positions.size() > max_deleted_characters:
-		all_char_positions.shuffle()
-		for i in range(total_chars):
-			char_positions.append(all_char_positions[i])
-	else:
-		char_positions = all_char_positions
-	
-	# Create the zap effects
+	return char_positions
+
+func spawn_zap_characters(info: SoundEditorInfo, char_positions: Array) -> void:
+	var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
 	for char_info in char_positions:
 		var zapping_key: KeyZap = KEY_ZAP.instantiate()
 		info.code_edit.add_child(zapping_key)
 		zapping_key.position = char_info.position
-		zapping_key.set_key(char_info.char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"), self)
-
-func get_selection_base_position(info: SoundEditorInfo) -> Vector2:
-	# Get selection information
-	var selection_from_line = info.code_edit.get_selection_from_line()
-	var selection_to_line = info.code_edit.get_selection_to_line()
-	
-	# Determine which line to use as the base (top of selection)
-	var base_line = selection_from_line
-	if selection_from_line > selection_to_line:
-		# Selection was made from bottom to top
-		base_line = selection_to_line
-	
-	# Get position at the top line of the selection
-	var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
-	return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
+		zapping_key.set_key(char_info.char, font_size, self)
 
 func play_sound(action_type: ActionType, should_overwrite_playing: bool = true) -> void:
 	var data = sound_player_datas[action_type]
@@ -666,9 +680,9 @@ func handle_selection(code_edit: CodeEdit, current_selection_length: int, new_se
 
 func play_selection_sound(code_edit: CodeEdit, selection_length: int, new_selection: String, info: SoundEditorInfo) -> bool:
 	var current_time = Time.get_ticks_msec() / 1000.0
-	var time_delta = max(0.001, current_time - info.last_selection_time)  # Avoid division by zero
+	var time_delta = max(0.001, current_time - info.last_selection_time)
 
-	# Calculate selection velocity (chars per second) dasd
+	# Calculate selection velocity (chars per second)
 	var selection_velocity = abs(selection_length - info.selection_length) / time_delta
 
 	# Base cooldown and pitch calculations
@@ -681,16 +695,14 @@ func play_selection_sound(code_edit: CodeEdit, selection_length: int, new_select
 	var pitch_scale = base_pitch + length_factor + velocity_factor
 
 	if current_time - info.last_selection_time >= selection_cooldown:
-		# Add slight randomization for variety
 		sound_player_datas[ActionType.SELECTING].player.pitch_scale = pitch_scale * randf_range(0.975, 1.025)
 		play_sound(ActionType.SELECTING)
 
-		# Update tracking variables
 		info.last_selection_time = current_time
 		info.selection_length = selection_length
 		return true
 	else:
-		# Still update the selected text but don't play sound
+		# Just update text (cooldown)
 		info.selection_length = selection_length
 	return false
 
