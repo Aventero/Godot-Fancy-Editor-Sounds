@@ -45,9 +45,6 @@ enum AnimationType {
 }
 #endregion
 
-#region SOUND SETTINGS
-#endregion
-
 #region ANIMATION SETTINGS
 var zap_accumulator: int = 0
 #endregion
@@ -62,8 +59,6 @@ var shader_tab_container: TabContainer
 var current_control: Control = null
 var current_hover_tree_item: TreeItem = null
 var current_hover_list_item: int = 0
-var tab_pressed: bool
-var tab_affected_lines = []
 var current_slider: EditorSpinSlider = null
 var previous_slider_value: float = 0.0
 var is_mouse_button_pressed: bool = false
@@ -216,23 +211,24 @@ func handle_interface_input(event: InputEvent) -> void:
 func handle_tab_input(event: InputEvent) -> void:
 	# Add tab key detection near the beginning of the function
 	if event is InputEventKey and event.pressed and event.keycode == KEY_TAB and has_editor_focused:
-		tab_pressed = true
-		tab_affected_lines = []
-		
 		# Find which editor is focused
 		for editor_id in editors:
 			var info: SoundEditorInfo = editors[editor_id]
 			if is_instance_valid(info.code_edit) and info.code_edit.has_focus():
+				# Set tab_pressed for this specific editor
+				info.tab_pressed = true
+				info.tab_affected_lines = []
+				
 				# Store the affected lines
 				if info.code_edit.has_selection():
 					var start_line = info.code_edit.get_selection_from_line()
 					var end_line = info.code_edit.get_selection_to_line()
 					
 					for line in range(start_line, end_line + 1):
-						tab_affected_lines.append(info.code_edit.get_line(line))
+						info.tab_affected_lines.append(info.code_edit.get_line(line))
 				else:
 					# No selection, just the current line
-					tab_affected_lines.append(info.code_edit.get_line(info.code_edit.get_caret_line()))
+					info.tab_affected_lines.append(info.code_edit.get_line(info.code_edit.get_caret_line()))
 				break
 
 #region SLIDER
@@ -587,7 +583,8 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 	
 	if should_reset_zap_accumulator(action_type):
 		zap_accumulator = 0
-	tab_pressed = false
+		
+	info.tab_pressed = false
 
 	return sound_played
 
@@ -601,7 +598,7 @@ func play_random_typing_sound() -> void:
 #region ANIMATION
 
 func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
-	if tab_pressed:
+	if info.tab_pressed:  # Use editor-specific tab_pressed
 		if not settings.zap_tabbing_delete_animations_enabled:
 			return ""
 		
@@ -610,31 +607,32 @@ func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) ->
 			return ""
 			
 		# Single Line Tabbed
-		if tab_affected_lines.size() == 1: 
-			return tab_affected_lines[0]
+		if info.tab_affected_lines.size() == 1:
+			return info.tab_affected_lines[0]
 		
-		# Multible lines Tabbed
-		return "\n".join(tab_affected_lines)
+		# Multiple lines Tabbed
+		return "\n".join(info.tab_affected_lines)
 	
 	var current_line_pos: int = info.code_edit.get_caret_line()
 	var previous_line: String = info.previous_line
 	var current_line: String = info.code_edit.get_line(current_line_pos)
 	var current_col = info.code_edit.get_caret_column()
 
+	# First check if there was a selection that was deleted
+	if info.previous_selection.length() > 0 && animation_type == AnimationType.ZAP:
+		return info.previous_selection
+
 	# Line deletion
 	if info.code_edit.get_line_count() < info.previous_line_count:
-		# Backspacing at beginning of line
-		if current_col > 0 and info.caret_line > current_line_pos:
+		if animation_type == AnimationType.STANDARD:
+			return ""
+		
+		# Backspace at beginning of line
+		if current_line_pos < info.caret_line && current_col > 0:
 			return "\n"
 		
-		if animation_type == AnimationType.ZAP:
-			if info.previous_selection.length() > 0:
-				return info.previous_selection
-			else:
-				# Ctrl + X
-				return previous_line
-		else:
-			return ""
+		# Ctrl+X, multiple backspace...
+		return previous_line
 
 	# Backspace Delete
 	if current_col < info.caret_column:
@@ -679,6 +677,7 @@ func play_key_zap_animation(info: SoundEditorInfo) -> void:
 		return
 	
 	var deleted_chars: String = check_deleted_text(info, AnimationType.ZAP)
+	print(deleted_chars)
 	if deleted_chars.is_empty():
 		return
 	
@@ -689,8 +688,7 @@ func play_key_zap_animation(info: SoundEditorInfo) -> void:
 func get_animation_base_position(info: SoundEditorInfo, deleted_chars: String) -> Vector2:
 	var lines = deleted_chars.split("\n")
 	var is_likely_cut = info.code_edit.get_line_count() < info.previous_line_count
-	
-	if tab_pressed or lines.size() > 1 or is_likely_cut:
+	if info.tab_pressed or lines.size() > 1 or is_likely_cut:
 		return get_selection_base_position(info)
 	else:
 		return info.code_edit.get_caret_draw_pos()
