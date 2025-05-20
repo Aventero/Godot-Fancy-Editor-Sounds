@@ -2,11 +2,15 @@
 extends EditorPlugin
 class_name FancyEditorSounds
 
+# Import the settings manager
+const SettingsManager = preload("res://addons/fancy_editor_sounds/fancy_editor_sound_settings.gd")
+
 #region SOUND
 var KEY_DROP: Resource
 var KEY_ZAP: Resource
 var sound_player_datas: Dictionary
 var typing_sounds: Array[Resource]
+var settings: FancyEditorSoundsSettings
 enum ActionType {
 	NONE,
 	TYPING,
@@ -42,26 +46,10 @@ enum AnimationType {
 #endregion
 
 #region SOUND SETTINGS
-const initial_volume_db: int = -35
-const SOUND_SETTINGS_PATH = "fancy_editor_sounds/"
-var volume_db: int = initial_volume_db
-var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 #endregion
 
 #region ANIMATION SETTINGS
-const SETTINGS_VOLUME_PATH = SOUND_SETTINGS_PATH + "volume_db"
-const DELETE_ANIMATION_PATH = SOUND_SETTINGS_PATH + "delete_animations"
-const DELETE_STANDARD_ANIMATION_PATH = DELETE_ANIMATION_PATH + " standard"
-const DELETE_ZAP_ANIMATION_PATH = DELETE_ANIMATION_PATH + " zap"
-const DELETE_ZAP_MAX_ANIMATION_PATH = DELETE_ZAP_ANIMATION_PATH + " max deletions"
-const DELETE_ZAP_TABBING_ANIMATION_PATH = DELETE_ZAP_ANIMATION_PATH + " tabbing"
-var delete_animations_enabled: bool = true
-var zap_delete_animations_enabled: bool = true
-var zap_tabbing_delete_animations_enabled: bool = true
 var zap_accumulator: int = 0
-var standard_delete_animations_enabled: bool = true
-var initial_max_deleted_characters: int = 50
-var max_deleted_characters: int = initial_max_deleted_characters
 #endregion
 
 #region EDITOR SCANNING
@@ -108,15 +96,13 @@ func _enter_tree() -> void:
 
 func initialize() -> void:
 	
+	settings = FancyEditorSoundsSettings.new(EditorInterface.get_editor_settings())
+	settings.initialize()
+	# Find shader container after UI is fully loaded
+	EditorInterface.get_editor_settings().settings_changed.connect(_on_settings_changed)
+	
 	KEY_DROP = load("res://addons/fancy_editor_sounds/key_drop.tscn")
 	KEY_ZAP = load("res://addons/fancy_editor_sounds/key_zap.tscn")
-	
-	# Find shader container after UI is fully loaded
-	editor_settings.settings_changed.connect(_on_settings_changed)
-	
-	# Set or Load settings
-	set_and_load_animation_settings()
-	set_and_load_volume_settings()
 	
 	# Init Sounds
 	create_sound_player(ActionType.TYPING, 1.1, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
@@ -137,18 +123,18 @@ func initialize() -> void:
 	create_sound_player(ActionType.INTERFACE_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
 	create_sound_player(ActionType.INTERFACE_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
 	create_sound_player(ActionType.INTERFACE_HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
-	create_sound_player(ActionType.INTERFACE_SLIDER_TICK, 1.7, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-very-short.wav")
+	create_sound_player(ActionType.INTERFACE_SLIDER_TICK, 1.6, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-very-short.wav")
 	
 	load_typing_sounds()
-	set_and_load_player_settings()
+	set_player_volumes()
 	
 	# Start the plugin basically
 	set_process(true)
 
 func create_sound_player(action_type: ActionType, volume_multiplier, sound_path: String) -> AudioStreamPlayer:
-	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
+	var player_data: SoundPlayerData = SoundPlayerData.new(settings.volume_db, volume_multiplier, ActionType.keys()[action_type])
 	player_data.volume_multiplier = volume_multiplier
-	player_data.player.volume_db = volume_db * player_data.volume_multiplier
+	player_data.player.volume_db = settings.volume_db * player_data.volume_multiplier
 	add_child(player_data.player)
 	sound_player_datas[action_type] = player_data
 	sound_player_datas[action_type].player.stream = load(sound_path)
@@ -417,94 +403,14 @@ func play_button_sound(is_pressed: bool) -> void:
 #region SETTINGS
 
 func _on_settings_changed() -> void:
-	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
-		volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
-
-		for player_data: SoundPlayerData in sound_player_datas.values():
-			var setting_enabled_path: String = SOUND_SETTINGS_PATH + player_data.action_name
-			player_data.player.volume_db = volume_db * player_data.volume_multiplier
-			
-			if editor_settings.has_setting(setting_enabled_path):
-				player_data.enabled = editor_settings.get_setting(setting_enabled_path)
-			
-		if editor_settings.has_setting(DELETE_ANIMATION_PATH):
-			delete_animations_enabled = editor_settings.get_setting(DELETE_ANIMATION_PATH)
-		
-		if editor_settings.has_setting(DELETE_STANDARD_ANIMATION_PATH):
-			standard_delete_animations_enabled = editor_settings.get_setting(DELETE_STANDARD_ANIMATION_PATH)
-		
-		if editor_settings.has_setting(DELETE_ZAP_ANIMATION_PATH):
-			zap_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_ANIMATION_PATH)
-			
-		if editor_settings.has_setting(DELETE_ZAP_MAX_ANIMATION_PATH):
-			max_deleted_characters = editor_settings.get_setting(DELETE_ZAP_MAX_ANIMATION_PATH)
-		
-		if editor_settings.has_setting(DELETE_ZAP_TABBING_ANIMATION_PATH):
-			zap_tabbing_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_TABBING_ANIMATION_PATH)
-
-func set_and_load_volume_settings() -> void:
-	# Volume setting
-	if not editor_settings.has_setting(SETTINGS_VOLUME_PATH):
-		# Set the setting to a value DIFFERENT from the initial value
-		editor_settings.set_setting(SETTINGS_VOLUME_PATH, initial_volume_db)
-		editor_settings.set_initial_value(SETTINGS_VOLUME_PATH, initial_volume_db - 1, false)
-		editor_settings.add_property_info({
-			"name": SETTINGS_VOLUME_PATH,
-			"type": TYPE_FLOAT,
-			"hint": PROPERTY_HINT_RANGE,
-			"hint_string": "-80.0, 0.0, 1.0"
-		})
+	settings.on_settings_changed()
+	set_player_volumes()
 	
-	volume_db = editor_settings.get_setting(SETTINGS_VOLUME_PATH)
-
-func register_and_load_animation_setting(path: String, default_enabled: bool) -> bool:
-	# Delete Animation setting
-	if not editor_settings.has_setting(path):
-		editor_settings.set_setting(path, default_enabled)
-		editor_settings.set_initial_value(path, false, false)
-		editor_settings.add_property_info({
-			"name": path,
-			"type": TYPE_BOOL,
-			"hint": PROPERTY_HINT_NONE,
-			"hint_string": ""
-		})
-	
-	return editor_settings.get_setting(path)
-
-func set_and_load_animation_settings() -> void:
-	delete_animations_enabled = register_and_load_animation_setting(DELETE_ANIMATION_PATH, true)
-	standard_delete_animations_enabled = register_and_load_animation_setting(DELETE_STANDARD_ANIMATION_PATH, true)
-	zap_delete_animations_enabled = register_and_load_animation_setting(DELETE_ZAP_ANIMATION_PATH, false)
-	zap_tabbing_delete_animations_enabled = register_and_load_animation_setting(DELETE_ZAP_TABBING_ANIMATION_PATH, true)
-
-	if not editor_settings.has_setting(DELETE_ZAP_MAX_ANIMATION_PATH):
-		# Set the setting to a value DIFFERENT from the initial value
-		editor_settings.set_setting(DELETE_ZAP_MAX_ANIMATION_PATH, initial_max_deleted_characters)
-		editor_settings.set_initial_value(DELETE_ZAP_MAX_ANIMATION_PATH, initial_max_deleted_characters - 1, false)
-		editor_settings.add_property_info({
-			"name": DELETE_ZAP_MAX_ANIMATION_PATH,
-			"type": TYPE_INT,
-			"hint": PROPERTY_HINT_RANGE,
-			"hint_string": "0, 5000, 1"
-		})
-	
-	max_deleted_characters = editor_settings.get_setting(DELETE_ZAP_MAX_ANIMATION_PATH)
-
-func set_and_load_player_settings() -> void:
-	# Setting for each sound
-	for player_data: SoundPlayerData in sound_player_datas.values():
-		var setting_name: String = SOUND_SETTINGS_PATH + player_data.action_name
-		if not editor_settings.has_setting(setting_name):
-			editor_settings.set_setting(setting_name, true)
-			editor_settings.set_initial_value(setting_name, false, false)
-			editor_settings.add_property_info({
-				"name": setting_name,
-				"type": TYPE_BOOL,
-				"hint": PROPERTY_HINT_NONE,
-				"hint_string": ""
-			})
-			
-		player_data.enabled = editor_settings.get_setting(setting_name)
+func set_player_volumes() -> void:
+	for action_type in sound_player_datas.keys():
+		var player_data = sound_player_datas[action_type]
+		player_data.player.volume_db = settings.volume_db * player_data.volume_multiplier
+		player_data.enabled = settings.get_player_enabled(ActionType.keys()[action_type])
 
 #endregion
 
@@ -550,10 +456,10 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 		ActionType.DELETING:
 			play_sound(action_type)
 			# Delete Animations
-			if delete_animations_enabled:
-				if zap_delete_animations_enabled:
+			if settings.delete_animations_enabled:
+				if settings.zap_delete_animations_enabled:
 					play_key_zap_animation(info)
-				if standard_delete_animations_enabled: 
+				if settings.standard_delete_animations_enabled: 
 					play_delete_animation(info)
 			return true
 		ActionType.SELECTING:
@@ -696,7 +602,7 @@ func play_random_typing_sound() -> void:
 
 func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
 	if tab_pressed:
-		if not zap_tabbing_delete_animations_enabled:
+		if not settings.zap_tabbing_delete_animations_enabled:
 			return ""
 		
 		# Ignore when Standard Animation
@@ -814,7 +720,7 @@ func calculate_char_positions(info: SoundEditorInfo, deleted_chars: String, base
 				continue
 			
 			valid_char_count += 1
-			if valid_char_count <= max_deleted_characters:
+			if valid_char_count <= settings.max_deleted_characters:
 				char_positions.append({
 					"char": character,
 					"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
@@ -822,7 +728,7 @@ func calculate_char_positions(info: SoundEditorInfo, deleted_chars: String, base
 			else:
 				# Reached max deleted, set random char indexes for remaining chars
 				var random_idx = randi() % valid_char_count
-				if random_idx < max_deleted_characters:
+				if random_idx < settings.max_deleted_characters:
 					char_positions[random_idx] = {
 						"char": character,
 						"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
@@ -931,15 +837,6 @@ func _exit_tree() -> void:
 	set_process(false)
 
 func _disable_plugin() -> void:
-	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
-		editor_settings.erase(SETTINGS_VOLUME_PATH)
-		for player_data: SoundPlayerData in sound_player_datas.values():
-			var sound_player_setting: String = SOUND_SETTINGS_PATH + player_data.action_name
-			if editor_settings.has_setting(sound_player_setting):
-				editor_settings.erase(sound_player_setting)
-		editor_settings.erase(DELETE_ANIMATION_PATH)
-		editor_settings.erase(DELETE_STANDARD_ANIMATION_PATH)
-		editor_settings.erase(DELETE_ZAP_ANIMATION_PATH)
-		editor_settings.erase(DELETE_ZAP_TABBING_ANIMATION_PATH)
-		editor_settings.erase(DELETE_ZAP_MAX_ANIMATION_PATH)
+	settings.clean_all_settings()
+
 #endregion
