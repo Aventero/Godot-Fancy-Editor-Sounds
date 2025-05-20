@@ -845,17 +845,29 @@ func add_new_editor(code_edit: CodeEdit, editor_id: String) -> void:
 
 func register_script_editor() -> void:
 	var current_editor = EditorInterface.get_script_editor().get_current_editor()
-	if current_editor:
-		var code_edit = current_editor.get_base_editor()
-		if code_edit:
-			# Create unique ID for each script editor
-			var script_path = EditorInterface.get_script_editor().get_current_script().resource_path
-			var editor_id = "script_editor_" + script_path
-			
-			if not editors.has(editor_id):
-				add_new_editor(code_edit, editor_id)
-			else:
-				editors[editor_id].code_edit = code_edit
+	if not current_editor:
+		return
+		
+	var code_edit = current_editor.get_base_editor()
+	if not code_edit:
+		return
+		
+	# Create a unique ID for this editor
+	var editor_id = ""
+	var current_script = EditorInterface.get_script_editor().get_current_script()
+	
+	if current_script and current_script.resource_path:
+		# Normal script with a path
+		editor_id = "script_editor_" + current_script.resource_path
+	else:
+		# Fallback external files
+		editor_id = "script_editor_" + str(code_edit.get_instance_id())
+	
+	# Update or add the editor
+	if not editors.has(editor_id):
+		add_new_editor(code_edit, editor_id)
+	else:
+		editors[editor_id].code_edit = code_edit
 
 func find_shader_editor_container() -> void:
 	var base_control: Control = EditorInterface.get_base_control()
