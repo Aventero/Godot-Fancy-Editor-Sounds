@@ -3,7 +3,7 @@ extends EditorPlugin
 class_name FancyEditorSounds
 
 # Import the settings manager
-const SettingsManager = preload("res://addons/fancy_editor_sounds/fancy_editor_sound_settings.gd")
+const SettingsManager = preload("res://addons/fancy_editor_sounds/FancyEditorSoundSettings.gd")
 
 #region SOUND
 var KEY_DROP: Resource
@@ -31,7 +31,6 @@ enum ActionType {
 	INTERFACE_BUTTON_OFF,
 	INTERFACE_SLIDER_TICK,
 	INTERFACE_HOVER,
-	INTERFACE_SELECT_ITEM,
 }
 enum DeleteDirection {
 	LEFT,
@@ -50,6 +49,7 @@ var zap_accumulator: int = 0
 #endregion
 
 #region EDITOR SCANNING
+var last_focused_editor_id: String = ""
 var has_editor_focused: bool = false
 var editors: Dictionary = {}
 var shader_tab_container: TabContainer
@@ -65,21 +65,32 @@ var is_mouse_button_pressed: bool = false
 var is_dragging_slider: bool = false
 #endregion
 
+
 func _process(delta: float) -> void:
 	if not Engine.is_editor_hint():
 		return
-
+		
 	register_script_editor()
-
-	var sound_played: bool = false
+	
 	has_editor_focused = false
-	for editor_id: String in editors.keys():
+	
+	# Check if any editor has focus
+	for editor_id in editors.keys():
 		var info: SoundEditorInfo = editors[editor_id]
 		if not is_instance_valid(info.code_edit):
 			editors.erase(editor_id)
 			continue
-		if not sound_played:
-			sound_played = play_editor_sounds(editor_id, info)
+			
+		if info.code_edit.has_focus():
+			has_editor_focused = true
+			last_focused_editor_id = editor_id
+			break
+	
+	# Always process the last focused editor
+	if last_focused_editor_id != "" and editors.has(last_focused_editor_id):
+		var info = editors[last_focused_editor_id]
+		if is_instance_valid(info.code_edit):
+			play_editor_sounds(last_focused_editor_id, info)
 
 #region SETUP
 
@@ -93,6 +104,7 @@ func initialize() -> void:
 	
 	settings = FancyEditorSoundsSettings.new(EditorInterface.get_editor_settings())
 	settings.initialize()
+	
 	# Find shader container after UI is fully loaded
 	EditorInterface.get_editor_settings().settings_changed.connect(_on_settings_changed)
 	
@@ -100,25 +112,25 @@ func initialize() -> void:
 	KEY_ZAP = load("res://addons/fancy_editor_sounds/key_zap.tscn")
 	
 	# Init Sounds
-	create_sound_player(ActionType.TYPING, 1.1, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
-	create_sound_player(ActionType.SELECTING, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	create_sound_player(ActionType.SELECTING_WORD, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-all.wav")
-	create_sound_player(ActionType.DESELECTING, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/deselect.wav")
+	create_sound_player(ActionType.TYPING, 0.7, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
+	create_sound_player(ActionType.SELECTING, 0.6, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
+	create_sound_player(ActionType.SELECTING_WORD, 0.5, "res://addons/fancy_editor_sounds/keyboard_sounds/select-all.wav")
+	create_sound_player(ActionType.DESELECTING, 0.5, "res://addons/fancy_editor_sounds/keyboard_sounds/deselect.wav")
 	create_sound_player(ActionType.SELECTING_ALL, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-word.wav")
-	create_sound_player(ActionType.CARET_MOVING, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/key-movement.mp3")
+	create_sound_player(ActionType.CARET_MOVING, 0.2, "res://addons/fancy_editor_sounds/keyboard_sounds/key-movement.mp3")
 	create_sound_player(ActionType.REDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
 	create_sound_player(ActionType.UNDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
-	create_sound_player(ActionType.SAVE, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/date-impact.wav")
-	create_sound_player(ActionType.DELETING, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-delete.mp3")
-	create_sound_player(ActionType.COPY, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
-	create_sound_player(ActionType.PASTE, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
-	create_sound_player(ActionType.ZAP_REACHED, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	create_sound_player(ActionType.INTERFACE_BUTTON_CLICK, 0.8, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
-	create_sound_player(ActionType.INTERFACE_SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
-	create_sound_player(ActionType.INTERFACE_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
-	create_sound_player(ActionType.INTERFACE_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
-	create_sound_player(ActionType.INTERFACE_HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
-	create_sound_player(ActionType.INTERFACE_SLIDER_TICK, 1.6, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-very-short.wav")
+	create_sound_player(ActionType.SAVE, 0.18, "res://addons/fancy_editor_sounds/keyboard_sounds/date-impact.wav")
+	create_sound_player(ActionType.DELETING, 0.85, "res://addons/fancy_editor_sounds/keyboard_sounds/key-delete.mp3")
+	create_sound_player(ActionType.COPY, 0.4, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.PASTE, 0.2, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
+	create_sound_player(ActionType.ZAP_REACHED, 0.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
+	
+	create_sound_player(ActionType.INTERFACE_BUTTON_CLICK, 0.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_ON, 0.5, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_OFF, 0.5, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
+	create_sound_player(ActionType.INTERFACE_HOVER, 0.5, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
+	create_sound_player(ActionType.INTERFACE_SLIDER_TICK, 0.2, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-very-short.wav")
 	
 	load_typing_sounds()
 	set_player_volumes()
@@ -126,14 +138,40 @@ func initialize() -> void:
 	# Start the plugin basically
 	set_process(true)
 
-func create_sound_player(action_type: ActionType, volume_multiplier, sound_path: String) -> AudioStreamPlayer:
-	var player_data: SoundPlayerData = SoundPlayerData.new(settings.volume_db, volume_multiplier, ActionType.keys()[action_type])
-	player_data.volume_multiplier = volume_multiplier
-	player_data.player.volume_db = settings.volume_db * player_data.volume_multiplier
+func create_sound_player(action_type: ActionType, volume_multiplier: float, sound_path: String) -> AudioStreamPlayer:
+	# Create the player data with the new parameters
+	var player_data: SoundPlayerData = SoundPlayerData.new(volume_multiplier, ActionType.keys()[action_type])
 	add_child(player_data.player)
 	sound_player_datas[action_type] = player_data
 	sound_player_datas[action_type].player.stream = load(sound_path)
+	update_player_volume(action_type)
 	return player_data.player
+
+func update_player_volume(action_type: ActionType) -> void:
+	var player_data = sound_player_datas[action_type]
+	
+	var volume_db = base_volume_from_percentage(settings.volume_percentage)
+	
+	# For interface sounds, apply the interface volume adjustment
+	if player_data.action_name.begins_with("INTERFACE_"):
+		var interface_adjustment = additional_db_from_percentage(settings.interface_volume_percentage)
+		volume_db += interface_adjustment
+	
+	volume_db += 20 * log(player_data.volume_multiplier) / log(10)
+	player_data.player.volume_db = volume_db
+
+# Convert percentage to dB
+func base_volume_from_percentage(percentage: float) -> float:
+	# Map 0% to -80 dB and 100% to 0 dB
+	return lerp(-80.0, 0.0, percentage / 100.0)
+
+# Calculate dB adjustment from percentage
+func additional_db_from_percentage(percentage: float) -> float:
+	if percentage <= 0:
+		return -80.0
+	else:
+		# Convert percentage to dB (100% = 0dB, 200% = +6dB, 50% = -6dB)
+		return 20 * log(percentage / 100.0) / log(10)
 
 func load_typing_sounds() -> void:
 	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3"))
@@ -150,11 +188,15 @@ func _input(event: InputEvent) -> void:
 		return
 	
 	handle_tab_input(event)
-	handle_interface_input(event)
+	
+	if settings.editor_interface_sounds_enabled:
+		handle_interface_input(event)
 
 func _shortcut_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		if event.keycode == KEY_S and event.ctrl_pressed and not event.echo and not event.is_released() and has_editor_focused:
+			if not settings.code_editor_sounds_enabled:
+				return
 			play_sound(ActionType.SAVE)
 
 func handle_interface_input(event: InputEvent) -> void:
@@ -165,7 +207,7 @@ func handle_interface_input(event: InputEvent) -> void:
 	# Track slider dragging state
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.is_pressed():
-			# Mouse pressed down - check if we're on a slider or any of its children
+			# Mouse pressed down -> on slider or children?
 			var slider = find_parent_slider(focused)
 			if slider:
 				is_dragging_slider = true
@@ -174,7 +216,6 @@ func handle_interface_input(event: InputEvent) -> void:
 			# Mouse released - end dragging state
 			if is_dragging_slider:
 				is_dragging_slider = false
-				# Don't disconnect yet, as focus might return to the slider
 			
 			# Update the previous value if we have a slider
 			if current_slider != null:
@@ -182,10 +223,8 @@ func handle_interface_input(event: InputEvent) -> void:
 	
 	if current_slider != null:
 		if !is_instance_valid(current_slider):
-			# Slider has been freed
 			cleanup_slider_tracking()
 		elif !is_dragging_slider && !is_control_related_to_slider(focused, current_slider):
-			# Not dragging AND focus has moved completely away from the slider
 			cleanup_slider_tracking()
 	
 	# Handle focus when not dragging
@@ -209,27 +248,30 @@ func handle_interface_input(event: InputEvent) -> void:
 		handle_button_click(focused, event)
 
 func handle_tab_input(event: InputEvent) -> void:
-	# Add tab key detection near the beginning of the function
-	if event is InputEventKey and event.pressed and event.keycode == KEY_TAB and has_editor_focused:
-		# Find which editor is focused
-		for editor_id in editors:
-			var info: SoundEditorInfo = editors[editor_id]
-			if is_instance_valid(info.code_edit) and info.code_edit.has_focus():
-				# Set tab_pressed for this specific editor
-				info.tab_pressed = true
-				info.tab_affected_lines = []
+	
+	# Only process tab key events when an editor is focused
+	if not (event is InputEventKey and event.pressed and event.keycode == KEY_TAB and has_editor_focused):
+		return
+		
+	# Find which editor is focused
+	for editor_id in editors:
+		var info: SoundEditorInfo = editors[editor_id]
+		if is_instance_valid(info.code_edit) and info.code_edit.has_focus():
+			# Set tab_pressed for this specific editor
+			info.tab_pressed = true
+			info.tab_affected_lines = []
+			
+			# Store the affected lines
+			if info.code_edit.has_selection():
+				var start_line = info.code_edit.get_selection_from_line()
+				var end_line = info.code_edit.get_selection_to_line()
 				
-				# Store the affected lines
-				if info.code_edit.has_selection():
-					var start_line = info.code_edit.get_selection_from_line()
-					var end_line = info.code_edit.get_selection_to_line()
-					
-					for line in range(start_line, end_line + 1):
-						info.tab_affected_lines.append(info.code_edit.get_line(line))
-				else:
-					# No selection, just the current line
-					info.tab_affected_lines.append(info.code_edit.get_line(info.code_edit.get_caret_line()))
-				break
+				for line in range(start_line, end_line + 1):
+					info.tab_affected_lines.append(info.code_edit.get_line(line))
+			else:
+				# No selection, just the current line
+				info.tab_affected_lines.append(info.code_edit.get_line(info.code_edit.get_caret_line()))
+			break
 
 #region SLIDER
 
@@ -376,8 +418,8 @@ func play_hover_sound() -> void:
 	play_sound(ActionType.INTERFACE_HOVER, false)
 
 func play_select_sound() -> void:
-	sound_player_datas[ActionType.INTERFACE_SELECT_ITEM].player.pitch_scale = randf_range(1.0, 1.1)
-	play_sound(ActionType.INTERFACE_SELECT_ITEM)
+	sound_player_datas[ActionType.INTERFACE_BUTTON_CLICK].player.pitch_scale = randf_range(1.0, 1.1)
+	play_sound(ActionType.INTERFACE_BUTTON_CLICK)
 
 func play_option_button_sound(is_on: bool) -> void:
 	if is_on:
@@ -404,10 +446,11 @@ func _on_settings_changed() -> void:
 	
 func set_player_volumes() -> void:
 	for action_type in sound_player_datas.keys():
+		update_player_volume(action_type)
+		
+		# Set enabled state
 		var player_data = sound_player_datas[action_type]
-		player_data.player.volume_db = settings.volume_db * player_data.volume_multiplier
-		player_data.enabled = settings.get_player_enabled(ActionType.keys()[action_type])
-
+		player_data.enabled = settings.get_player_enabled(player_data.action_name)
 #endregion
 
 #region SOUNDS
@@ -426,17 +469,24 @@ func play_sound(action_type: ActionType, should_overwrite_playing: bool = true) 
 		data.player.play()
 
 func play_zap_sound() -> void:
+	if not settings.code_editor_sounds_enabled:
+		return
+	
 	zap_accumulator += 1
 	var accumulator_pitching = clamp(1 + float(zap_accumulator) / 200.0, 1.0, 2.0)
 	sound_player_datas[ActionType.ZAP_REACHED].player.pitch_scale = randf_range(0.875, 1.025) * accumulator_pitching
 	play_sound(ActionType.ZAP_REACHED, false)
 
 func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selection_length: int, new_selection: String, info: SoundEditorInfo) -> bool:
+	if not settings.code_editor_sounds_enabled:
+		return false
+	
 	match action_type:
 		ActionType.UNDO:
 			play_sound(action_type)
 			return true
 		ActionType.REDO:
+			sound_player_datas[ActionType.REDO].player.pitch_scale = 1.1
 			play_sound(action_type)
 			return true
 		ActionType.COPY:
@@ -451,12 +501,6 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 			return true
 		ActionType.DELETING:
 			play_sound(action_type)
-			# Delete Animations
-			if settings.delete_animations_enabled:
-				if settings.zap_delete_animations_enabled:
-					play_key_zap_animation(info)
-				if settings.standard_delete_animations_enabled: 
-					play_delete_animation(info)
 			return true
 		ActionType.SELECTING:
 			return handle_selection(code_edit, current_selection_length, new_selection, info)
@@ -466,9 +510,17 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 			play_sound(action_type)
 			return true
 		ActionType.CARET_MOVING:
+			sound_player_datas[ActionType.CARET_MOVING].player.pitch_scale = randf_range(0.9, 1.0)
 			play_sound(action_type)
 			return true
 	return false
+
+func handle_delete_animation(info: SoundEditorInfo) -> void:
+	if settings.delete_animations_enabled:
+		if settings.zap_delete_animations_enabled:
+			play_key_zap_animation(info)
+		if settings.standard_delete_animations_enabled: 
+			play_delete_animation(info)
 
 func handle_selection(code_edit: CodeEdit, current_selection_length: int, new_selection: String, info: SoundEditorInfo) -> bool:
 	var single_select: bool = abs(info.selection_length - current_selection_length) == 1
@@ -516,11 +568,50 @@ func play_selection_sound(code_edit: CodeEdit, selection_length: int, new_select
 		info.selection_length = selection_length
 	return false
 
+func has_editor_changed_state(code_edit: CodeEdit, info: SoundEditorInfo) -> bool:
+	# Quick check if anything has changed
+	var current_text = code_edit.text
+	var has_selection_now = code_edit.has_selection()
+	var selection_length = code_edit.get_selected_text().length() if has_selection_now else 0
+	
+	# Check if nothing has changed
+	var nothing_changed = (
+		current_text == info.previous_text 
+		and code_edit.get_caret_column() == info.caret_column 
+		and code_edit.get_caret_line() == info.caret_line
+		and has_selection_now == (info.selection_length > 0)
+		and selection_length == info.selection_length
+	)
+	
+	# Return true if editor state changed, false otherwise
+	return !nothing_changed
+
+func just_pressed_action() -> ActionType:
+	
+	if Input.is_action_just_pressed("ui_undo") and has_editor_focused:
+		return ActionType.UNDO
+
+	if Input.is_action_just_pressed("ui_redo") and has_editor_focused:
+		return ActionType.REDO
+
+	if Input.is_action_just_pressed("ui_copy") and has_editor_focused:
+		return ActionType.COPY
+
+	if Input.is_action_just_pressed("ui_paste") and has_editor_focused:
+		return ActionType.PASTE
+	
+	return ActionType.NONE
+
 func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 	var code_edit: CodeEdit = info.code_edit
 	if not code_edit:
 		return false
 	
+	var pressed_action = just_pressed_action()
+	
+	if not has_editor_changed_state(code_edit, info) and pressed_action == ActionType.NONE:
+		return false
+		
 	if not has_editor_focused:
 		has_editor_focused = code_edit.has_focus()
 
@@ -528,7 +619,7 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 	var current_char_count = code_edit.text.length()
 	var current_caret_column = code_edit.get_caret_column()
 	var current_caret_line = code_edit.get_caret_line()
-	var caret_changed = (current_caret_column != info.caret_column|| current_caret_line != info.caret_line)
+	var caret_changed = (current_caret_column != info.caret_column || current_caret_line != info.caret_line)
 
 	# Determine what changed and in what order
 	var action_type = ActionType.NONE
@@ -550,22 +641,17 @@ func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
 		action_type = ActionType.TYPING
 	elif current_char_count < info.char_count:
 		action_type = ActionType.DELETING
-
+		
 	var single_select: bool = abs(info.selection_length - current_selection_length) == 1
+	
+	if pressed_action != ActionType.NONE:
+		action_type = pressed_action
 
-	if Input.is_action_just_pressed("ui_undo") and has_editor_focused:
-		action_type = ActionType.UNDO
-
-	if Input.is_action_just_pressed("ui_redo") and has_editor_focused:
-		action_type = ActionType.REDO
-
-	if Input.is_action_just_pressed("ui_copy") and has_editor_focused:
-		action_type = ActionType.COPY
-
-	if Input.is_action_just_pressed("ui_paste") and has_editor_focused:
-		action_type = ActionType.PASTE
 	
 	var sound_played: bool = handle_action(action_type, code_edit, current_selection_length, new_selection, info)
+	if action_type == ActionType.DELETING:
+		handle_delete_animation(info)
+	
 	info.previous_caret_pos = code_edit.get_caret_draw_pos()
 	info.previous_text = current_text
 	info.previous_line = code_edit.get_line(current_caret_line)
@@ -677,7 +763,6 @@ func play_key_zap_animation(info: SoundEditorInfo) -> void:
 		return
 	
 	var deleted_chars: String = check_deleted_text(info, AnimationType.ZAP)
-	print(deleted_chars)
 	if deleted_chars.is_empty():
 		return
 	

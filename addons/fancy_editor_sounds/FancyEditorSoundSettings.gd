@@ -10,18 +10,23 @@ const SETTINGS_INTERFACE = SETTINGS_ROOT + "editor_interface/"
 
 # Settings references
 var editor_settings: EditorSettings
-var initial_volume_db: int = -35
-var initial_max_deleted_characters: int = 50
+var initial_max_deleted_characters: int = 25
+
+# In FancyEditorSoundsSettings class
+var initial_volume_percentage: float = 50.0 
+var volume_percentage: float = initial_volume_percentage
+var initial_interface_volume_percentage: float = 100.0 
+var interface_volume_percentage: float = initial_interface_volume_percentage
 
 # Current setting values
-var volume_db: int = initial_volume_db
+var interface_volume_multiplier: float = 1.0
+var code_editor_sounds_enabled: bool = true
 var delete_animations_enabled: bool = true
+var editor_interface_sounds_enabled: bool = true
 var standard_delete_animations_enabled: bool = true
 var zap_delete_animations_enabled: bool = false
 var zap_tabbing_delete_animations_enabled: bool = true
 var max_deleted_characters: int = initial_max_deleted_characters
-
-# Dictionary to store player settings references
 var sound_player_settings: Dictionary = {}
 
 func _init(p_editor_settings: EditorSettings) -> void:
@@ -29,16 +34,18 @@ func _init(p_editor_settings: EditorSettings) -> void:
 
 func initialize() -> void:
 	if should_reset_settings():
-		print("[Fancy Editor Sounds] Initializing or updating settings structure")
+		print_rich("[color=#FF79B8][b][Fancy Editor Sounds][/b][/color] [color=#FFFFFF]Welcome! To adjust settings go to:[/color]")
+		print_rich("[color=#FF79B8][b][Fancy Editor Sounds][/b][/color] [color=#AAAAFF]Editor[/color] → [color=#AAAAFF]Editor Settings...[/color] → [color=#AAAAFF]Enable Advanced Settings[/color]")
+		print_rich("[color=#FF79B8][b][Fancy Editor Sounds][/b][/color] [color=#FFFFFF]Then scroll down to:[/color] [color=#90EE90]'Fancy Editor Sounds'[/color]")
 		clean_all_settings()
 		setup_settings_structure()
 	
 	load_settings_values()
 
 func should_reset_settings() -> bool:
-	# Define core settings that must exist in the current version
+	# Core settings that must exist in the current version
 	var core_settings = [
-		SETTINGS_ROOT + "volume_db",
+		SETTINGS_ROOT + "volume_percentage",
 		SETTINGS_ANIMATION + "enabled",
 		SETTINGS_ANIMATION + "standard_delete",
 		SETTINGS_CODE_EDITOR + "typing"
@@ -59,10 +66,11 @@ func clean_all_settings() -> void:
 
 func setup_settings_structure() -> void:
 	# Root settings
-	register_setting(SETTINGS_ROOT + "volume_db", initial_volume_db, TYPE_FLOAT, 
-					 PROPERTY_HINT_RANGE, "-80.0, 0.0, 1.0", "Master Volume")
+	register_setting(SETTINGS_ROOT + "volume_percentage", initial_volume_percentage, TYPE_FLOAT, 
+					 PROPERTY_HINT_RANGE, "0.0, 100.0, 1.0", "Master Volume")
 	
 	# Register individual code editor sounds 
+	register_setting(SETTINGS_CODE_EDITOR + "enabled", true, TYPE_BOOL)
 	register_setting(SETTINGS_CODE_EDITOR + "typing", true, TYPE_BOOL)
 	register_setting(SETTINGS_CODE_EDITOR + "deleting", true, TYPE_BOOL)
 	register_setting(SETTINGS_CODE_EDITOR + "selecting", true, TYPE_BOOL)
@@ -80,13 +88,16 @@ func setup_settings_structure() -> void:
 	# Animation section
 	register_setting(SETTINGS_ANIMATION + "enabled", true, TYPE_BOOL, 
 					 PROPERTY_HINT_NONE, "", "Enable Delete Animations")
-	register_setting(SETTINGS_ANIMATION + "standard_delete", true, TYPE_BOOL)
-	register_setting(SETTINGS_ANIMATION + "zap_delete", false, TYPE_BOOL)
+	register_setting(SETTINGS_ANIMATION + "standard_delete", false, TYPE_BOOL)
+	register_setting(SETTINGS_ANIMATION + "zap_delete", true, TYPE_BOOL)
 	register_setting(SETTINGS_ANIMATION + "zap_tabbing", true, TYPE_BOOL)
 	register_setting(SETTINGS_ANIMATION + "max_deleted_chars", initial_max_deleted_characters, 
 					 TYPE_INT, PROPERTY_HINT_RANGE, "0, 5000, 1")
 	
 	# Interface section
+	register_setting(SETTINGS_INTERFACE + "volume_percentage", initial_interface_volume_percentage, TYPE_FLOAT,
+					 PROPERTY_HINT_RANGE, "0.0, 200.0, 5.0", "Interface Volume")
+	register_setting(SETTINGS_INTERFACE + "enabled", true, TYPE_BOOL)
 	register_setting(SETTINGS_INTERFACE + "button_click", true, TYPE_BOOL)
 	register_setting(SETTINGS_INTERFACE + "button_on", true, TYPE_BOOL)
 	register_setting(SETTINGS_INTERFACE + "button_off", true, TYPE_BOOL)
@@ -127,9 +138,20 @@ func register_setting(path: String, default_value, type: int = TYPE_BOOL,
 
 func load_settings_values() -> void:
 	# Load master volume
-	if editor_settings.has_setting(SETTINGS_ROOT + "volume_db"):
-		volume_db = editor_settings.get_setting(SETTINGS_ROOT + "volume_db")
-	
+	if editor_settings.has_setting(SETTINGS_ROOT + "volume_percentage"):
+		volume_percentage = editor_settings.get_setting(SETTINGS_ROOT + "volume_percentage")
+
+	# Code Editor Sounds
+	if editor_settings.has_setting(SETTINGS_CODE_EDITOR + "enabled"):
+		code_editor_sounds_enabled = editor_settings.get_setting(SETTINGS_CODE_EDITOR + "enabled")
+
+	# Interface
+	if editor_settings.has_setting(SETTINGS_INTERFACE + "enabled"):
+		editor_interface_sounds_enabled = editor_settings.get_setting(SETTINGS_INTERFACE + "enabled")
+
+	if editor_settings.has_setting(SETTINGS_INTERFACE + "volume_percentage"):
+		interface_volume_percentage = editor_settings.get_setting(SETTINGS_INTERFACE + "volume_percentage")
+
 	# Load animation settings
 	if editor_settings.has_setting(SETTINGS_ANIMATION + "enabled"):
 		delete_animations_enabled = editor_settings.get_setting(SETTINGS_ANIMATION + "enabled")
