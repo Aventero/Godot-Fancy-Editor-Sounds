@@ -76,23 +76,11 @@ var current_hover_tree_item: TreeItem = null
 var current_hover_list_item: int = 0
 var tab_pressed: bool
 var tab_affected_lines = []
+var current_slider: EditorSpinSlider = null
+var previous_slider_value: float = 0.0
+var is_mouse_button_pressed: bool = false
+var is_dragging_slider: bool = false
 #endregion
-
-func _enter_tree() -> void:
-	if not Engine.is_editor_hint():
-		return
-	_initialize()
-	get_tree().create_timer(2.0).timeout.connect(find_shader_editor_container)
-
-func _shortcut_input(event: InputEvent) -> void:
-	if event is InputEventKey:
-		if event.keycode == KEY_S and event.ctrl_pressed and not event.echo and not event.is_released() and has_editor_focused:
-			play_sound(ActionType.SAVE)
-
-func _exit_tree() -> void:
-	for data: SoundPlayerData in sound_player_datas.values():
-		data.player.queue_free()
-	set_process(false)
 
 func _process(delta: float) -> void:
 	if not Engine.is_editor_hint():
@@ -110,6 +98,72 @@ func _process(delta: float) -> void:
 		if not sound_played:
 			sound_played = play_editor_sounds(editor_id, info)
 
+#region SETUP
+
+func _enter_tree() -> void:
+	if not Engine.is_editor_hint():
+		return
+	initialize()
+	get_tree().create_timer(2.0).timeout.connect(find_shader_editor_container)
+
+func initialize() -> void:
+	
+	KEY_DROP = load("res://addons/fancy_editor_sounds/key_drop.tscn")
+	KEY_ZAP = load("res://addons/fancy_editor_sounds/key_zap.tscn")
+	
+	# Find shader container after UI is fully loaded
+	editor_settings.settings_changed.connect(_on_settings_changed)
+	
+	# Set or Load settings
+	set_and_load_animation_settings()
+	set_and_load_volume_settings()
+	
+	# Init Sounds
+	create_sound_player(ActionType.TYPING, 1.1, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
+	create_sound_player(ActionType.SELECTING, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
+	create_sound_player(ActionType.SELECTING_WORD, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-all.wav")
+	create_sound_player(ActionType.DESELECTING, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/deselect.wav")
+	create_sound_player(ActionType.SELECTING_ALL, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-word.wav")
+	create_sound_player(ActionType.CARET_MOVING, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/key-movement.mp3")
+	create_sound_player(ActionType.REDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
+	create_sound_player(ActionType.UNDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
+	create_sound_player(ActionType.SAVE, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/date-impact.wav")
+	create_sound_player(ActionType.DELETING, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-delete.mp3")
+	create_sound_player(ActionType.COPY, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.PASTE, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
+	create_sound_player(ActionType.ZAP_REACHED, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_CLICK, 0.8, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
+	create_sound_player(ActionType.INTERFACE_SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
+	create_sound_player(ActionType.INTERFACE_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
+	create_sound_player(ActionType.INTERFACE_HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
+	create_sound_player(ActionType.INTERFACE_SLIDER_TICK, 1.7, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-very-short.wav")
+	
+	load_typing_sounds()
+	set_and_load_player_settings()
+	
+	# Start the plugin basically
+	set_process(true)
+
+func create_sound_player(action_type: ActionType, volume_multiplier, sound_path: String) -> AudioStreamPlayer:
+	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
+	player_data.volume_multiplier = volume_multiplier
+	player_data.player.volume_db = volume_db * player_data.volume_multiplier
+	add_child(player_data.player)
+	sound_player_datas[action_type] = player_data
+	sound_player_datas[action_type].player.stream = load(sound_path)
+	return player_data.player
+
+func load_typing_sounds() -> void:
+	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3"))
+	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-2.mp3"))
+	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-3.mp3"))
+	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-4.mp3"))
+
+#endregion
+
+#region INPUT INTERFACE
+
 func _input(event: InputEvent) -> void:
 	if not Engine.is_editor_hint():
 		return
@@ -117,23 +171,173 @@ func _input(event: InputEvent) -> void:
 	handle_tab_input(event)
 	handle_interface_input(event)
 
+func _shortcut_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		if event.keycode == KEY_S and event.ctrl_pressed and not event.echo and not event.is_released() and has_editor_focused:
+			play_sound(ActionType.SAVE)
+
 func handle_interface_input(event: InputEvent) -> void:
 	await get_tree().process_frame
 	var base_control = EditorInterface.get_base_control()
 	var focused = base_control.get_viewport().gui_get_hovered_control()
 	
-	# Handle focus switching
-	if is_instance_valid(focused) and current_control != focused:
+	# Track slider dragging state
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.is_pressed():
+			# Mouse pressed down - check if we're on a slider or any of its children
+			var slider = find_parent_slider(focused)
+			if slider:
+				is_dragging_slider = true
+				setup_slider_tracking(slider)
+		else:
+			# Mouse released - end dragging state
+			if is_dragging_slider:
+				is_dragging_slider = false
+				# Don't disconnect yet, as focus might return to the slider
+			
+			# Update the previous value if we have a slider
+			if current_slider != null:
+				previous_slider_value = current_slider.value
+	
+	if current_slider != null:
+		if !is_instance_valid(current_slider):
+			# Slider has been freed
+			cleanup_slider_tracking()
+		elif !is_dragging_slider && !is_control_related_to_slider(focused, current_slider):
+			# Not dragging AND focus has moved completely away from the slider
+			cleanup_slider_tracking()
+	
+	# Handle focus when not dragging
+	if !is_dragging_slider && is_instance_valid(focused) && current_control != focused:
 		handle_focus_hover(focused)
+	
+		# Setup slider tracking when focus changes to a slider
+		var slider = find_parent_slider(focused)
+		if slider && !is_dragging_slider:
+			setup_slider_tracking(slider)
 	
 	if focused is Tree:
 		handle_tree_interactions(focused, event)
 	elif focused is ItemList:
 		handle_item_list_interactions(focused, event)
-	
+	elif is_control_related_to_slider(focused, current_slider):
+		handle_editor_slider_interactions(current_slider, event)
+		
 	# Handle button clicks
 	if event is InputEventMouseButton and event.is_released() and event.button_index == MOUSE_BUTTON_LEFT:
-		handle_INTERFACE_BUTTON_CLICK(focused, event)
+		handle_button_click(focused, event)
+
+func handle_tab_input(event: InputEvent) -> void:
+	# Add tab key detection near the beginning of the function
+	if event is InputEventKey and event.pressed and event.keycode == KEY_TAB and has_editor_focused:
+		tab_pressed = true
+		tab_affected_lines = []
+		
+		# Find which editor is focused
+		for editor_id in editors:
+			var info: SoundEditorInfo = editors[editor_id]
+			if is_instance_valid(info.code_edit) and info.code_edit.has_focus():
+				# Store the affected lines
+				if info.code_edit.has_selection():
+					var start_line = info.code_edit.get_selection_from_line()
+					var end_line = info.code_edit.get_selection_to_line()
+					
+					for line in range(start_line, end_line + 1):
+						tab_affected_lines.append(info.code_edit.get_line(line))
+				else:
+					# No selection, just the current line
+					tab_affected_lines.append(info.code_edit.get_line(info.code_edit.get_caret_line()))
+				break
+
+#region SLIDER
+
+func find_parent_slider(control: Control) -> EditorSpinSlider:
+	if !is_instance_valid(control):
+		return null
+		
+	if control is EditorSpinSlider:
+		return control
+	
+	var parent = control.get_parent()
+	for i in range(3):
+		if parent is EditorSpinSlider:
+			return parent
+		if parent is Control:
+			parent = parent.get_parent()
+		else:
+			break
+	
+	return null
+
+func is_control_related_to_slider(control: Control, slider: EditorSpinSlider) -> bool:
+	if !is_instance_valid(control) or !is_instance_valid(slider):
+		return false
+	
+	# Direct match
+	if control == slider:
+		return true
+	
+	# Child of slider
+	var parent = control.get_parent()
+	for i in range(3):
+		if parent == slider:
+			return true
+		if parent is Control:
+			parent = parent.get_parent()
+		else:
+			break
+	
+	return false
+
+func setup_slider_tracking(slider: EditorSpinSlider) -> void:
+	if current_slider == slider:
+		return
+	
+	# Clean up existing slider
+	if current_slider != null and current_slider != slider:
+		cleanup_slider_tracking()
+	
+	current_slider = slider
+	previous_slider_value = slider.value
+	
+	# Connect to value_changed signal if not already connected
+	if not slider.is_connected("value_changed", Callable(self, "_on_slider_value_changed")):
+		slider.value_changed.connect(_on_slider_value_changed)
+
+func cleanup_slider_tracking() -> void:
+	if current_slider != null:
+		if is_instance_valid(current_slider) and current_slider.is_connected("value_changed", Callable(self, "_on_slider_value_changed")):
+			current_slider.value_changed.disconnect(_on_slider_value_changed)
+		current_slider = null
+
+func _on_slider_value_changed(new_value: float) -> void:
+	if abs(new_value - previous_slider_value) > 0.001:
+		# Determine if value is increasing or decreasing
+		var is_increasing = new_value > previous_slider_value
+		play_slider_sound(is_increasing)
+	previous_slider_value = new_value
+
+func handle_editor_slider_interactions(slider: EditorSpinSlider, event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.is_pressed():
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			if abs(slider.value - previous_slider_value) > 0.001:
+				var is_increasing = slider.value > previous_slider_value
+				play_slider_sound(is_increasing)
+				previous_slider_value = slider.value
+
+func play_slider_sound(is_increasing: bool) -> void:
+	if is_increasing:
+		# Higher pitch when increasing
+		sound_player_datas[ActionType.INTERFACE_SLIDER_TICK].player.pitch_scale = randf_range(1.0, 1.1)
+	else:
+		# Lower pitch when decreasing
+		sound_player_datas[ActionType.INTERFACE_SLIDER_TICK].player.pitch_scale = randf_range(0.8, 0.9)
+	
+	play_sound(ActionType.INTERFACE_SLIDER_TICK, false)
+
+#endregion
+
+#region OTHER
 
 func handle_focus_hover(focused: Control) -> void:
 	current_control = focused
@@ -176,7 +380,7 @@ func handle_item_list_interactions(item_list: ItemList, event: InputEvent) -> vo
 			if item_list.get_item_at_position(item_mouse_pos) == item_list.get_selected_items().get(0):
 				play_select_sound()
 
-func handle_INTERFACE_BUTTON_CLICK(control: Control, event: InputEvent) -> void:
+func handle_button_click(control: Control, event: InputEvent) -> void:
 	if control is CheckBox or control is OptionButton or control is CheckButton:
 		play_option_button_sound(control.button_pressed)
 		return
@@ -206,28 +410,11 @@ func play_button_sound(is_pressed: bool) -> void:
 		sound_player_datas[ActionType.INTERFACE_BUTTON_CLICK].player.pitch_scale = randf_range(0.9, 1.0)
 	play_sound(ActionType.INTERFACE_BUTTON_CLICK, true)
 
+#endregion
 
-func handle_tab_input(event: InputEvent) -> void:
-	# Add tab key detection near the beginning of the function
-	if event is InputEventKey and event.pressed and event.keycode == KEY_TAB and has_editor_focused:
-		tab_pressed = true
-		tab_affected_lines = []
-		
-		# Find which editor is focused
-		for editor_id in editors:
-			var info: SoundEditorInfo = editors[editor_id]
-			if is_instance_valid(info.code_edit) and info.code_edit.has_focus():
-				# Store the affected lines
-				if info.code_edit.has_selection():
-					var start_line = info.code_edit.get_selection_from_line()
-					var end_line = info.code_edit.get_selection_to_line()
-					
-					for line in range(start_line, end_line + 1):
-						tab_affected_lines.append(info.code_edit.get_line(line))
-				else:
-					# No selection, just the current line
-					tab_affected_lines.append(info.code_edit.get_line(info.code_edit.get_caret_line()))
-				break
+#endregion
+
+#region SETTINGS
 
 func _on_settings_changed() -> void:
 	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
@@ -254,80 +441,6 @@ func _on_settings_changed() -> void:
 		
 		if editor_settings.has_setting(DELETE_ZAP_TABBING_ANIMATION_PATH):
 			zap_tabbing_delete_animations_enabled = editor_settings.get_setting(DELETE_ZAP_TABBING_ANIMATION_PATH)
-
-func create_sound_player(action_type: ActionType, volume_multiplier, sound_path: String) -> AudioStreamPlayer:
-	var player_data: SoundPlayerData = SoundPlayerData.new(volume_db, volume_multiplier, ActionType.keys()[action_type])
-	player_data.volume_multiplier = volume_multiplier
-	player_data.player.volume_db = volume_db * player_data.volume_multiplier
-	add_child(player_data.player)
-	sound_player_datas[action_type] = player_data
-	sound_player_datas[action_type].player.stream = load(sound_path)
-	return player_data.player
-
-func _initialize() -> void:
-	
-	KEY_DROP = load("res://addons/fancy_editor_sounds/key_drop.tscn")
-	KEY_ZAP = load("res://addons/fancy_editor_sounds/key_zap.tscn")
-	
-	# Find shader container after UI is fully loaded
-	editor_settings.settings_changed.connect(_on_settings_changed)
-	
-	# Set or Load settings
-	set_and_load_animation_settings()
-	set_and_load_volume_settings()
-	
-	# Init Sounds
-	create_sound_player(ActionType.TYPING, 1.1, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
-	create_sound_player(ActionType.SELECTING, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	create_sound_player(ActionType.SELECTING_WORD, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-all.wav")
-	create_sound_player(ActionType.DESELECTING, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/deselect.wav")
-	create_sound_player(ActionType.SELECTING_ALL, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/select-word.wav")
-	create_sound_player(ActionType.CARET_MOVING, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/key-movement.mp3")
-	create_sound_player(ActionType.REDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
-	create_sound_player(ActionType.UNDO, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-invalid.wav")
-	create_sound_player(ActionType.SAVE, 1.5, "res://addons/fancy_editor_sounds/keyboard_sounds/date-impact.wav")
-	create_sound_player(ActionType.DELETING, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/key-delete.mp3")
-	create_sound_player(ActionType.COPY, 1.0, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
-	create_sound_player(ActionType.PASTE, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/badge-dink-max.wav")
-	create_sound_player(ActionType.ZAP_REACHED, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/select-char.wav")
-	create_sound_player(ActionType.INTERFACE_BUTTON_CLICK, 0.8, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick-deeper.wav")
-	create_sound_player(ActionType.INTERFACE_SELECT_ITEM, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/notch-tick.wav")
-	create_sound_player(ActionType.INTERFACE_BUTTON_ON, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-on.wav")
-	create_sound_player(ActionType.INTERFACE_BUTTON_OFF, 1.2, "res://addons/fancy_editor_sounds/keyboard_sounds/check-off.wav")
-	create_sound_player(ActionType.INTERFACE_HOVER, 1.3, "res://addons/fancy_editor_sounds/keyboard_sounds/button-sidebar-hover-megashort.wav")
-	load_typing_sounds()
-	set_and_load_player_settings()
-	
-	# Start the plugin basically
-	set_process(true)
-
-func load_typing_sounds() -> void:
-	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3"))
-	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-2.mp3"))
-	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-3.mp3"))
-	typing_sounds.append(load("res://addons/fancy_editor_sounds/keyboard_sounds/key-press-4.mp3"))
-
-func add_new_editor(code_edit: CodeEdit, editor_id: String) -> void:
-	if not editors.has(editor_id):
-		editors[editor_id] = SoundEditorInfo.new(code_edit)
-
-func play_random_typing_sound() -> void:
-	var random_index = randi() % typing_sounds.size()
-	sound_player_datas[ActionType.TYPING].player.stream = typing_sounds[random_index]
-	play_sound(ActionType.TYPING)
-
-func _disable_plugin() -> void:
-	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
-		editor_settings.erase(SETTINGS_VOLUME_PATH)
-		for player_data: SoundPlayerData in sound_player_datas.values():
-			var sound_player_setting: String = SOUND_SETTINGS_PATH + player_data.action_name
-			if editor_settings.has_setting(sound_player_setting):
-				editor_settings.erase(sound_player_setting)
-		editor_settings.erase(DELETE_ANIMATION_PATH)
-		editor_settings.erase(DELETE_STANDARD_ANIMATION_PATH)
-		editor_settings.erase(DELETE_ZAP_ANIMATION_PATH)
-		editor_settings.erase(DELETE_ZAP_TABBING_ANIMATION_PATH)
-		editor_settings.erase(DELETE_ZAP_MAX_ANIMATION_PATH)
 
 func set_and_load_volume_settings() -> void:
 	# Volume setting
@@ -393,237 +506,9 @@ func set_and_load_player_settings() -> void:
 			
 		player_data.enabled = editor_settings.get_setting(setting_name)
 
-func register_script_editor() -> void:
-	var current_editor = EditorInterface.get_script_editor().get_current_editor()
-	if current_editor:
-		var code_edit = current_editor.get_base_editor()
-		if code_edit:
-			# Create unique ID for each script editor
-			var script_path = EditorInterface.get_script_editor().get_current_script().resource_path
-			var editor_id = "script_editor_" + script_path
-			
-			if not editors.has(editor_id):
-				add_new_editor(code_edit, editor_id)
-			else:
-				editors[editor_id].code_edit = code_edit
+#endregion
 
-func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
-	var code_edit: CodeEdit = info.code_edit
-	if not code_edit:
-		return false
-	
-	if not has_editor_focused:
-		has_editor_focused = code_edit.has_focus()
-
-	var current_text = code_edit.text
-	var current_char_count = code_edit.text.length()
-	var current_caret_column = code_edit.get_caret_column()
-	var current_caret_line = code_edit.get_caret_line()
-	var caret_changed = (current_caret_column != info.caret_column|| current_caret_line != info.caret_line)
-
-	# Determine what changed and in what order
-	var action_type = ActionType.NONE
-
-	# Check for selection status
-	var has_selection_now = code_edit.has_selection()
-	var new_selection = code_edit.get_selected_text()
-	var current_selection_length = new_selection.length()
-
-	if has_selection_now && current_selection_length != info.selection_length:
-		action_type = ActionType.SELECTING
-	elif !has_selection_now && info.selection_length > 0:
-		action_type = ActionType.DESELECTING
-	elif action_type == ActionType.NONE && caret_changed:
-		action_type = ActionType.CARET_MOVING
-
-	# Check for text changes first
-	if current_char_count > info.char_count:
-		action_type = ActionType.TYPING
-	elif current_char_count < info.char_count:
-		action_type = ActionType.DELETING
-
-	var single_select: bool = abs(info.selection_length - current_selection_length) == 1
-
-	if Input.is_action_just_pressed("ui_undo") and has_editor_focused:
-		action_type = ActionType.UNDO
-
-	if Input.is_action_just_pressed("ui_redo") and has_editor_focused:
-		action_type = ActionType.REDO
-
-	if Input.is_action_just_pressed("ui_copy") and has_editor_focused:
-		action_type = ActionType.COPY
-
-	if Input.is_action_just_pressed("ui_paste") and has_editor_focused:
-		action_type = ActionType.PASTE
-	
-	var sound_played: bool = handle_action(action_type, code_edit, current_selection_length, new_selection, info)
-	info.previous_caret_pos = code_edit.get_caret_draw_pos()
-	info.previous_text = current_text
-	info.previous_line = code_edit.get_line(current_caret_line)
-	info.char_count = current_char_count
-	info.caret_column = current_caret_column
-	info.caret_line = current_caret_line
-	info.previous_line_count = code_edit.get_line_count()
-	info.previous_selection = code_edit.get_selected_text()
-
-	if has_selection_now:
-		info.has_unselected = false
-		info.selection_length = current_selection_length
-	else:
-		info.selection_length = 0
-	
-	if should_reset_zap_accumulator(action_type):
-		zap_accumulator = 0
-	tab_pressed = false
-
-	return sound_played
-
-func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
-	if tab_pressed:
-		if not zap_tabbing_delete_animations_enabled:
-			return ""
-		
-		# Ignore when Standard Animation
-		if animation_type == AnimationType.STANDARD: 
-			return ""
-			
-		# Single Line Tabbed
-		if tab_affected_lines.size() == 1: 
-			return tab_affected_lines[0]
-		
-		# Multible lines Tabbed
-		return "\n".join(tab_affected_lines)
-	
-	var current_line_pos: int = info.code_edit.get_caret_line()
-	var previous_line: String = info.previous_line
-	var current_line: String = info.code_edit.get_line(current_line_pos)
-	var current_col = info.code_edit.get_caret_column()
-
-	# Line deletion
-	if info.code_edit.get_line_count() < info.previous_line_count:
-		# Backspacing at beginning of line
-		if current_col > 0 and info.caret_line > current_line_pos:
-			return "\n"
-		
-		if animation_type == AnimationType.ZAP:
-			if info.previous_selection.length() > 0:
-				return info.previous_selection
-			else:
-				# Ctrl + X
-				return previous_line
-		else:
-			return ""
-
-	# Backspace Delete
-	if current_col < info.caret_column:
-		var deletion_start = current_col
-		var deletion_end = info.caret_column
-		return previous_line.substr(deletion_start, deletion_end - deletion_start)
-
-	# Delete key
-	if current_col == info.caret_column:
-		var chars_deleted = previous_line.length() - current_line.length()
-		if chars_deleted > 0:
-			return previous_line.substr(current_col, chars_deleted)
-	return ""
-
-func play_delete_animation(info: SoundEditorInfo) -> void:
-	if not is_instance_valid(info.code_edit):
-		return
-	
-	var deleted_char = check_deleted_text(info, AnimationType.STANDARD)
-	var falling_key: KeyDrop = KEY_DROP.instantiate()
-	var line_height = info.code_edit.get_line_height()
-	var adjusted_pos = info.code_edit.get_caret_draw_pos() + Vector2(4, -line_height/2.0)
-	falling_key.position = adjusted_pos
-	falling_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
-	info.code_edit.add_child(falling_key)
-
-func get_selection_base_position(info: SoundEditorInfo) -> Vector2:
-	var selection_from_line = info.code_edit.get_selection_from_line()
-	var selection_to_line = info.code_edit.get_selection_to_line()
-	
-	# Which is the base line? (Top or bottom)
-	var base_line = selection_from_line
-	if selection_from_line > selection_to_line:
-		# Selection from bottom to top
-		base_line = selection_to_line
-	
-	var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
-	return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
-	
-	
-func play_key_zap_animation(info: SoundEditorInfo) -> void:
-	if not is_instance_valid(info.code_edit):
-		return
-	
-	var deleted_chars: String = check_deleted_text(info, AnimationType.ZAP)
-	if deleted_chars.is_empty():
-		return
-	
-	var base_pos = get_animation_base_position(info, deleted_chars)
-	var all_char_positions = calculate_char_positions(info, deleted_chars, base_pos)
-	spawn_zap_characters(info, all_char_positions)
-
-func get_animation_base_position(info: SoundEditorInfo, deleted_chars: String) -> Vector2:
-	var lines = deleted_chars.split("\n")
-	var is_likely_cut = info.code_edit.get_line_count() < info.previous_line_count
-	
-	if tab_pressed or lines.size() > 1 or is_likely_cut:
-		return get_selection_base_position(info)
-	else:
-		return info.code_edit.get_caret_draw_pos()
-
-func calculate_char_positions(info: SoundEditorInfo, deleted_chars: String, base_pos: Vector2) -> Array:
-	var lines = deleted_chars.split("\n")
-	var line_height = info.code_edit.get_line_height()
-	var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
-	var char_width = font_size * 0.6
-	var tab_width = info.code_edit.get_tab_size() * char_width
-	
-	var char_positions = []
-	var valid_char_count = 0
-	for line_idx in range(lines.size()):
-		var line = lines[line_idx]
-		var y_offset = line_idx * line_height
-		var current_x_offset = 0.0
-		
-		for char_idx in range(line.length()):
-			var character = line[char_idx]
-			
-			if character == "\t":
-				current_x_offset += tab_width
-				continue
-			elif character == " " or character == "\n" or character == "\r":
-				current_x_offset += char_width
-				continue
-			
-			valid_char_count += 1
-			if valid_char_count <= max_deleted_characters:
-				char_positions.append({
-					"char": character,
-					"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
-				})
-			else:
-				# Reached max deleted, set random char indexes for remaining chars
-				var random_idx = randi() % valid_char_count
-				if random_idx < max_deleted_characters:
-					char_positions[random_idx] = {
-						"char": character,
-						"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
-					}
-			
-			current_x_offset += char_width
-	
-	return char_positions
-
-func spawn_zap_characters(info: SoundEditorInfo, char_positions: Array) -> void:
-	var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
-	for char_info in char_positions:
-		var zapping_key: KeyZap = KEY_ZAP.instantiate()
-		info.code_edit.add_child(zapping_key)
-		zapping_key.position = char_info.position
-		zapping_key.set_key(char_info.char, font_size, self)
+#region SOUNDS
 
 func play_sound(action_type: ActionType, should_overwrite_playing: bool = true) -> void:
 	var data = sound_player_datas[action_type]
@@ -643,12 +528,6 @@ func play_zap_sound() -> void:
 	var accumulator_pitching = clamp(1 + float(zap_accumulator) / 200.0, 1.0, 2.0)
 	sound_player_datas[ActionType.ZAP_REACHED].player.pitch_scale = randf_range(0.875, 1.025) * accumulator_pitching
 	play_sound(ActionType.ZAP_REACHED, false)
-
-func should_reset_zap_accumulator(action_type: ActionType) -> bool:
-	match action_type:
-		ActionType.NONE, ActionType.SELECTING, ActionType.DESELECTING, ActionType.DELETING:
-			return false
-	return true
 
 func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selection_length: int, new_selection: String, info: SoundEditorInfo) -> bool:
 	match action_type:
@@ -735,6 +614,260 @@ func play_selection_sound(code_edit: CodeEdit, selection_length: int, new_select
 		info.selection_length = selection_length
 	return false
 
+func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
+	var code_edit: CodeEdit = info.code_edit
+	if not code_edit:
+		return false
+	
+	if not has_editor_focused:
+		has_editor_focused = code_edit.has_focus()
+
+	var current_text = code_edit.text
+	var current_char_count = code_edit.text.length()
+	var current_caret_column = code_edit.get_caret_column()
+	var current_caret_line = code_edit.get_caret_line()
+	var caret_changed = (current_caret_column != info.caret_column|| current_caret_line != info.caret_line)
+
+	# Determine what changed and in what order
+	var action_type = ActionType.NONE
+
+	# Check for selection status
+	var has_selection_now = code_edit.has_selection()
+	var new_selection = code_edit.get_selected_text()
+	var current_selection_length = new_selection.length()
+
+	if has_selection_now && current_selection_length != info.selection_length:
+		action_type = ActionType.SELECTING
+	elif !has_selection_now && info.selection_length > 0:
+		action_type = ActionType.DESELECTING
+	elif action_type == ActionType.NONE && caret_changed:
+		action_type = ActionType.CARET_MOVING
+
+	# Check for text changes first
+	if current_char_count > info.char_count:
+		action_type = ActionType.TYPING
+	elif current_char_count < info.char_count:
+		action_type = ActionType.DELETING
+
+	var single_select: bool = abs(info.selection_length - current_selection_length) == 1
+
+	if Input.is_action_just_pressed("ui_undo") and has_editor_focused:
+		action_type = ActionType.UNDO
+
+	if Input.is_action_just_pressed("ui_redo") and has_editor_focused:
+		action_type = ActionType.REDO
+
+	if Input.is_action_just_pressed("ui_copy") and has_editor_focused:
+		action_type = ActionType.COPY
+
+	if Input.is_action_just_pressed("ui_paste") and has_editor_focused:
+		action_type = ActionType.PASTE
+	
+	var sound_played: bool = handle_action(action_type, code_edit, current_selection_length, new_selection, info)
+	info.previous_caret_pos = code_edit.get_caret_draw_pos()
+	info.previous_text = current_text
+	info.previous_line = code_edit.get_line(current_caret_line)
+	info.char_count = current_char_count
+	info.caret_column = current_caret_column
+	info.caret_line = current_caret_line
+	info.previous_line_count = code_edit.get_line_count()
+	info.previous_selection = code_edit.get_selected_text()
+
+	if has_selection_now:
+		info.has_unselected = false
+		info.selection_length = current_selection_length
+	else:
+		info.selection_length = 0
+	
+	if should_reset_zap_accumulator(action_type):
+		zap_accumulator = 0
+	tab_pressed = false
+
+	return sound_played
+
+func play_random_typing_sound() -> void:
+	var random_index = randi() % typing_sounds.size()
+	sound_player_datas[ActionType.TYPING].player.stream = typing_sounds[random_index]
+	play_sound(ActionType.TYPING)
+
+#endregion
+
+#region ANIMATION
+
+func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
+	if tab_pressed:
+		if not zap_tabbing_delete_animations_enabled:
+			return ""
+		
+		# Ignore when Standard Animation
+		if animation_type == AnimationType.STANDARD: 
+			return ""
+			
+		# Single Line Tabbed
+		if tab_affected_lines.size() == 1: 
+			return tab_affected_lines[0]
+		
+		# Multible lines Tabbed
+		return "\n".join(tab_affected_lines)
+	
+	var current_line_pos: int = info.code_edit.get_caret_line()
+	var previous_line: String = info.previous_line
+	var current_line: String = info.code_edit.get_line(current_line_pos)
+	var current_col = info.code_edit.get_caret_column()
+
+	# Line deletion
+	if info.code_edit.get_line_count() < info.previous_line_count:
+		# Backspacing at beginning of line
+		if current_col > 0 and info.caret_line > current_line_pos:
+			return "\n"
+		
+		if animation_type == AnimationType.ZAP:
+			if info.previous_selection.length() > 0:
+				return info.previous_selection
+			else:
+				# Ctrl + X
+				return previous_line
+		else:
+			return ""
+
+	# Backspace Delete
+	if current_col < info.caret_column:
+		var deletion_start = current_col
+		var deletion_end = info.caret_column
+		return previous_line.substr(deletion_start, deletion_end - deletion_start)
+
+	# Delete key
+	if current_col == info.caret_column:
+		var chars_deleted = previous_line.length() - current_line.length()
+		if chars_deleted > 0:
+			return previous_line.substr(current_col, chars_deleted)
+	return ""
+
+func play_delete_animation(info: SoundEditorInfo) -> void:
+	if not is_instance_valid(info.code_edit):
+		return
+	
+	var deleted_char = check_deleted_text(info, AnimationType.STANDARD)
+	var falling_key: KeyDrop = KEY_DROP.instantiate()
+	var line_height = info.code_edit.get_line_height()
+	var adjusted_pos = info.code_edit.get_caret_draw_pos() + Vector2(4, -line_height/2.0)
+	falling_key.position = adjusted_pos
+	falling_key.set_key(deleted_char, info.code_edit.get_theme_font_size("font_size", "CodeEdit"))
+	info.code_edit.add_child(falling_key)
+
+func get_selection_base_position(info: SoundEditorInfo) -> Vector2:
+	var selection_from_line = info.code_edit.get_selection_from_line()
+	var selection_to_line = info.code_edit.get_selection_to_line()
+	
+	# Which is the base line? (Top or bottom)
+	var base_line = selection_from_line
+	if selection_from_line > selection_to_line:
+		# Selection from bottom to top
+		base_line = selection_to_line
+	
+	var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
+	return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
+	
+func play_key_zap_animation(info: SoundEditorInfo) -> void:
+	if not is_instance_valid(info.code_edit):
+		return
+	
+	var deleted_chars: String = check_deleted_text(info, AnimationType.ZAP)
+	if deleted_chars.is_empty():
+		return
+	
+	var base_pos = get_animation_base_position(info, deleted_chars)
+	var all_char_positions = calculate_char_positions(info, deleted_chars, base_pos)
+	spawn_zap_characters(info, all_char_positions)
+
+func get_animation_base_position(info: SoundEditorInfo, deleted_chars: String) -> Vector2:
+	var lines = deleted_chars.split("\n")
+	var is_likely_cut = info.code_edit.get_line_count() < info.previous_line_count
+	
+	if tab_pressed or lines.size() > 1 or is_likely_cut:
+		return get_selection_base_position(info)
+	else:
+		return info.code_edit.get_caret_draw_pos()
+
+func calculate_char_positions(info: SoundEditorInfo, deleted_chars: String, base_pos: Vector2) -> Array:
+	var lines = deleted_chars.split("\n")
+	var line_height = info.code_edit.get_line_height()
+	var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
+	var char_width = font_size * 0.6
+	var tab_width = info.code_edit.get_tab_size() * char_width
+	
+	var char_positions = []
+	var valid_char_count = 0
+	for line_idx in range(lines.size()):
+		var line = lines[line_idx]
+		var y_offset = line_idx * line_height
+		var current_x_offset = 0.0
+		
+		for char_idx in range(line.length()):
+			var character = line[char_idx]
+			
+			if character == "\t":
+				current_x_offset += tab_width
+				continue
+			elif character == " " or character == "\n" or character == "\r":
+				current_x_offset += char_width
+				continue
+			
+			valid_char_count += 1
+			if valid_char_count <= max_deleted_characters:
+				char_positions.append({
+					"char": character,
+					"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
+				})
+			else:
+				# Reached max deleted, set random char indexes for remaining chars
+				var random_idx = randi() % valid_char_count
+				if random_idx < max_deleted_characters:
+					char_positions[random_idx] = {
+						"char": character,
+						"position": base_pos + Vector2(current_x_offset, -line_height/2.0 + y_offset)
+					}
+			
+			current_x_offset += char_width
+	
+	return char_positions
+
+func spawn_zap_characters(info: SoundEditorInfo, char_positions: Array) -> void:
+	var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
+	for char_info in char_positions:
+		var zapping_key: KeyZap = KEY_ZAP.instantiate()
+		info.code_edit.add_child(zapping_key)
+		zapping_key.position = char_info.position
+		zapping_key.set_key(char_info.char, font_size, self)
+
+func should_reset_zap_accumulator(action_type: ActionType) -> bool:
+	match action_type:
+		ActionType.NONE, ActionType.SELECTING, ActionType.DESELECTING, ActionType.DELETING:
+			return false
+	return true
+
+#endregion
+
+#region REGISTER EDITORS
+
+func add_new_editor(code_edit: CodeEdit, editor_id: String) -> void:
+	if not editors.has(editor_id):
+		editors[editor_id] = SoundEditorInfo.new(code_edit)
+
+func register_script_editor() -> void:
+	var current_editor = EditorInterface.get_script_editor().get_current_editor()
+	if current_editor:
+		var code_edit = current_editor.get_base_editor()
+		if code_edit:
+			# Create unique ID for each script editor
+			var script_path = EditorInterface.get_script_editor().get_current_script().resource_path
+			var editor_id = "script_editor_" + script_path
+			
+			if not editors.has(editor_id):
+				add_new_editor(code_edit, editor_id)
+			else:
+				editors[editor_id].code_edit = code_edit
+
 func find_shader_editor_container() -> void:
 	var base_control: Control = EditorInterface.get_base_control()
 	var shader_file_editor_node: Node = find_node_by_class_name(base_control, "ShaderFileEditor")
@@ -788,3 +921,25 @@ func initial_shader_editor_lookup(container: TabContainer) -> void:
 
 	for i in range(container.get_tab_count()):
 		add_shader_edit(container, i)
+
+#endregion
+
+#region CLEANUP
+func _exit_tree() -> void:
+	for data: SoundPlayerData in sound_player_datas.values():
+		data.player.queue_free()
+	set_process(false)
+
+func _disable_plugin() -> void:
+	if editor_settings.has_setting(SETTINGS_VOLUME_PATH):
+		editor_settings.erase(SETTINGS_VOLUME_PATH)
+		for player_data: SoundPlayerData in sound_player_datas.values():
+			var sound_player_setting: String = SOUND_SETTINGS_PATH + player_data.action_name
+			if editor_settings.has_setting(sound_player_setting):
+				editor_settings.erase(sound_player_setting)
+		editor_settings.erase(DELETE_ANIMATION_PATH)
+		editor_settings.erase(DELETE_STANDARD_ANIMATION_PATH)
+		editor_settings.erase(DELETE_ZAP_ANIMATION_PATH)
+		editor_settings.erase(DELETE_ZAP_TABBING_ANIMATION_PATH)
+		editor_settings.erase(DELETE_ZAP_MAX_ANIMATION_PATH)
+#endregion
