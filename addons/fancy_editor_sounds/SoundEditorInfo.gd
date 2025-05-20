@@ -13,6 +13,8 @@ var previous_line: String
 var previous_selection: String
 var previous_caret_pos: Vector2
 var previous_line_count: int
+var tab_pressed: bool
+var tab_affected_lines: Array = []
 
 func _init(_code_edit: CodeEdit) -> void:
 	code_edit = _code_edit
@@ -27,6 +29,8 @@ func _init(_code_edit: CodeEdit) -> void:
 	previous_caret_pos = _code_edit.get_caret_draw_pos()
 	previous_line_count = _code_edit.get_line_count()
 	previous_selection = _code_edit.get_selected_text()
+	tab_pressed = false
+	tab_affected_lines = []
 
 func _to_string() -> String:
 	var info_text = "[SoundEditorInfo] " + str(code_edit)
@@ -37,5 +41,7 @@ func _to_string() -> String:
 	info_text += "\nCurrent Selection: \"" + previous_selection + "\""
 	info_text += "\nPrevious Line: \"" + previous_line + "\""
 	info_text += "\nPrevious Line Count: " + str(previous_line_count)
+	info_text += "\nTab Pressed: " + str(tab_pressed)
+	info_text += "\nTab Affected Lines: " + str(tab_affected_lines.size()) + " lines"
 	return info_text
 	
