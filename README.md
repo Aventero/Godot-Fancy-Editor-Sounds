@@ -20,7 +20,7 @@ Adds sounds based on the Users actions inside the **Script Editor and Shader Edi
 https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
 
 ## Zap Delete Animation
-![FullPreview](https://github.com/user-attachments/assets/2bc4e445-5a80-4c32-b5a3-6b724c147c44)
+![ZAP_VS_STANDARD](https://github.com/user-attachments/assets/5f30ddaa-ef89-4b1a-8f52-ec9f84b88f23)
 
 
 ## Adjustable in Editor Settings!
