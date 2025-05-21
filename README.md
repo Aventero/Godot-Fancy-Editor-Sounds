@@ -24,11 +24,11 @@ https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
 
 
 ## Adjustable in Editor Settings!
-- The **Volume** can be adjusted.
+- The **Volume(s)** can be adjusted.
 - Each **Sound and Animations** can be **turned on/off** seperately.
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/9db8f111-39b4-4852-8fbf-cdecc5818a8d" alt="Editor Settings">
+<div align="left">
+  <img src="https://github.com/user-attachments/assets/e26c6464-c660-4e52-af28-ef468c02ba73" alt="Editor Settings">
 </div>
 
 ## Important notice
