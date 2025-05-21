@@ -6,20 +6,15 @@
 Brings audio into the typing experience to the Godot Editor and more!
 
 ## What does it do?
-Adds sounds based on the Users actions inside the **Script Editor and Shader Editor** for:
-- Typing
-- Deleting
-- Caret Movement
-- Copy & Pasting
-- Saving
-- Undo & Redo
-- Selecting (Single, Word, All)
-- Extra Animations when deleting text.
+Adds `sounds and animations` based on the Users actions inside the Editor UI, Scripts and Shaders for:
+- `Editor UI:` Hovering over UI elements, Clicking Buttons, Sliding Sliders, Checking Checkboxes, ...
+- `Code Editor` Typing, Deleting, Caret Movement, Copy & Pasting, Saving, Undo & Redo and Selecting
+- `Delete Animations` Standard, Zapping to Cursor and Gravity
 
 ## Small Audio Preview! (Turn on audio :))
 https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
 
-## Delete Animations
+## Adds Delete Animations!
 ### Standard
 <img src="https://github.com/user-attachments/assets/6f201a47-1c84-4a2f-9818-3089f5776f44" alt="Standard">
 
@@ -34,7 +29,8 @@ https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
 <img src="https://github.com/user-attachments/assets/ca61ef03-0099-4a0e-9aa9-f072f04264b1" alt="Gravity">
 
 
-## Adjustable in Editor Settings!
+## Editor Settings!
+- Found in: `Editor` → `Editor Settings...` → `Enable Advanced Settings` → Scroll to `Fancy Editor Sounds`
 - The **Volume(s)** can be adjusted.
 - Each **Sound and Animations** can be adjusted or **turned on/off** seperately.
 <img src="https://github.com/user-attachments/assets/1e816e8a-304c-4993-994d-1b480fb3644a" alt="Editor Settings">
