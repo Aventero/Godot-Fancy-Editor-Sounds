@@ -364,8 +364,7 @@ func play_slider_sound(is_increasing: bool) -> void:
 #region OTHER
 
 func handle_focus_hover(focused: Control) -> void:
-	current_control = focused
-	if current_control is Button or current_control is LineEdit:
+	if current_control is Button or current_control is LineEdit or current_control is EditorSpinSlider:
 		play_hover_sound()
 
 func handle_tree_interactions(tree: Tree, event: InputEvent) -> void:
