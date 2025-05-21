@@ -684,11 +684,11 @@ func play_random_typing_sound() -> void:
 
 func check_deleted_text(info: SoundEditorInfo, animation_type: AnimationType) -> String:
 	if info.tab_pressed:  # Use editor-specific tab_pressed
-		if not settings.zap_tabbing_delete_animations_enabled:
+		if not settings.tabbing_delete_animations_enabled:
 			return ""
 		
 		# Ignore when Standard Animation
-		if animation_type == AnimationType.STANDARD: 
+		if animation_type == AnimationType.STANDARD:
 			return ""
 			
 		# Single Line Tabbed

@@ -8,36 +8,40 @@ const SETTINGS_CODE_EDITOR = SETTINGS_ROOT + "code_editor/"
 const SETTINGS_ANIMATION = SETTINGS_ROOT + "animation/"
 const SETTINGS_INTERFACE = SETTINGS_ROOT + "editor_interface/"
 
-# Settings references
+# Editor
 var editor_settings: EditorSettings
+
+# Animation
 var initial_max_deleted_characters: int = 25
+var max_deleted_characters: int = initial_max_deleted_characters
+var initial_volume_percentage: float = 50.0 
+var delete_animations_enabled: bool = true
+var standard_delete_animations_enabled: bool = true
+var tabbing_delete_animations_enabled: bool = true
+
+# Zap Keys
+var zap_delete_animations_enabled: bool = false
 var zap_starting_velocity: float = 1000
 var zap_steering_force: float = 5000
+
+# Gravity Keys
 var gravity_keys_enabled: bool = false
 var gravity_keys_gravity: float = 10.0
-
 var gravity_keys_start_force_multiplier: float = 1.0
 var gravity_keys_start_force_x_min: float = -600
 var gravity_keys_start_force_x_max: float = 100
 var gravity_keys_start_force_y_min: float = -500
 var gravity_keys_start_force_y_max: float = -200
 
-# In FancyEditorSoundsSettings class
-var initial_volume_percentage: float = 50.0 
+# Sound
 var volume_percentage: float = initial_volume_percentage
 var initial_interface_volume_percentage: float = 100.0 
 var interface_volume_percentage: float = initial_interface_volume_percentage
-
-# Current setting values
 var interface_volume_multiplier: float = 1.0
-var code_editor_sounds_enabled: bool = true
-var delete_animations_enabled: bool = true
 var editor_interface_sounds_enabled: bool = true
-var standard_delete_animations_enabled: bool = true
-var zap_delete_animations_enabled: bool = false
-var zap_tabbing_delete_animations_enabled: bool = true
-var max_deleted_characters: int = initial_max_deleted_characters
+var code_editor_sounds_enabled: bool = true
 var sound_player_settings: Dictionary = {}
+
 
 func _init(p_editor_settings: EditorSettings) -> void:
 	editor_settings = p_editor_settings
@@ -192,7 +196,7 @@ func load_settings_values() -> void:
 	if editor_settings.has_setting(SETTINGS_ANIMATION + "zap_delete_or_gravity_keys_enabled"):
 		zap_delete_animations_enabled = editor_settings.get_setting(SETTINGS_ANIMATION + "zap_delete_or_gravity_keys_enabled")
 	if editor_settings.has_setting(SETTINGS_ANIMATION + "show_deleted_on_tabbing"):
-		zap_tabbing_delete_animations_enabled = editor_settings.get_setting(SETTINGS_ANIMATION + "show_deleted_on_tabbing")
+		tabbing_delete_animations_enabled = editor_settings.get_setting(SETTINGS_ANIMATION + "show_deleted_on_tabbing")
 	if editor_settings.has_setting(SETTINGS_ANIMATION + "max_deleted_chars"):
 		max_deleted_characters = editor_settings.get_setting(SETTINGS_ANIMATION + "max_deleted_chars")
 	if editor_settings.has_setting(SETTINGS_ANIMATION + "zap_starting_velocity"):

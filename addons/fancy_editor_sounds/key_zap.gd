@@ -14,7 +14,6 @@ var editor_sounds: FancyEditorSounds = null
 var played_sound: bool = false
 var use_gravity_keys: bool = false
 
-# New variables for gravity mode
 var lifetime: float = 0.0
 var max_lifetime: float = 3.0
 var horizontal_drag: float = 0.98
