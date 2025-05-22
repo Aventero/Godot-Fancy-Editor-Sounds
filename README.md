@@ -3,7 +3,7 @@
 </div>
 
 # Godot Fancy Editor Sounds!
-Brings audio into the typing experience to the Godot Editor and more!
+A *[Godot Asset](https://godotengine.org/asset-library/asset/3831)* playing *Sounds* 🎵 inside Scripts when typing :keyboard: or interacting with Godots Editor UI!
 
 ## What does it do?
 Adds `sounds and animations` based on the Users actions inside the Editor UI, Scripts and Shaders for:
@@ -14,7 +14,7 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
 ## Small Audio Preview! (Turn on audio :))
 https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
 
-## Adds Delete Animations!
+## Also adds Delete Animations!
 ### Standard
 <img src="https://github.com/user-attachments/assets/6f201a47-1c84-4a2f-9818-3089f5776f44" alt="Standard">
 
