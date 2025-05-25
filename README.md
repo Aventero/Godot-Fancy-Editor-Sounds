@@ -1,8 +1,9 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/f4976e74-bc26-442c-ae1b-5f8ef675e345" alt="Godos">
+  <img src="https://github.com/user-attachments/assets/6742d334-3739-4b8f-8de4-5da45d4f53e9" alt="Godos">
 </div>
 
 # Godot Fancy Editor Sounds!
+
 A *[Godot Asset](https://godotengine.org/asset-library/asset/3831)* playing *Sounds* 🎵 inside Scripts when typing :keyboard: or interacting with Godots Editor UI!
 
 ## What does it do?
@@ -11,8 +12,12 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
 - `Code Editor` Typing, Deleting, Caret Movement, Copy & Pasting, Saving, Undo & Redo and Selecting
 - `Delete Animations` Standard, Zapping to Cursor and Gravity
 
-## Small Audio Preview! (Turn on audio :))
-https://github.com/user-attachments/assets/19c49d35-1f7f-4fe5-bebd-fa699967d5b9
+## Audio Preview! (On YouTube):
+<a href="https://www.youtube.com/watch?v=COm1gXga9EE">
+  <img src="https://github.com/user-attachments/assets/eaa37e8c-4583-4280-b6af-31c7f1a99575" alt="Video Title" width="400">
+</a>
+
+
 
 ## Also adds Delete Animations!
 ### Standard
