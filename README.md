@@ -13,32 +13,38 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
 - `Delete Animations` Standard, Zapping to Cursor and Gravity
 
 ## Audio Preview! (On YouTube):
-<a href="https://www.youtube.com/watch?v=COm1gXga9EE">
+<div align="center">
+<a href="https://www.youtube.com/watch?v=COm1gXga9EE" >
   <img src="https://github.com/user-attachments/assets/eaa37e8c-4583-4280-b6af-31c7f1a99575" alt="Video Title" width="400">
 </a>
+</div>
 
 
-
-## Also adds Delete Animations!
+## Fancy Delete Animations!
 ### Standard
+<div align="center">
 <img src="https://github.com/user-attachments/assets/6f201a47-1c84-4a2f-9818-3089f5776f44" alt="Standard">
+</div>
 
-### Zap toward the mouse
-- Adjustable in the settings
 
+### "Zap toward the mouse"
+<div align="center">
 <img src="https://github.com/user-attachments/assets/e8fbabcb-dcc5-4de8-944e-d1102441c273" alt="Zap">
+</div>
 
 ### Gravity
-- Adjustable in the settings
-
+<div align="center">
 <img src="https://github.com/user-attachments/assets/ca61ef03-0099-4a0e-9aa9-f072f04264b1" alt="Gravity">
+</div>
 
 
 ## Editor Settings!
 - Found in: `Editor` → `Editor Settings...` → `Enable Advanced Settings` → Scroll to `Fancy Editor Sounds`
 - The **Volume(s)** can be adjusted.
 - Each **Sound and Animations** can be adjusted or **turned on/off** seperately.
+<div align="center">
 <img src="https://github.com/user-attachments/assets/1e816e8a-304c-4993-994d-1b480fb3644a" alt="Editor Settings">
+</div>
 
 ## Important notice
 **The amazing sounds used in this addon are not mine.** Sounds are from **[osu!/ppy's lazer client assets](https://github.com/ppy/osu-resources)**. This addon is not affiliated with osu!/ppy it just uses some of its sounds :).
