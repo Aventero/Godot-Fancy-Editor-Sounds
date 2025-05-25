@@ -23,18 +23,18 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
 ## Fancy Delete Animations!
 ### Standard
 <div align="center">
-<img src="https://github.com/user-attachments/assets/6f201a47-1c84-4a2f-9818-3089f5776f44" alt="Standard">
+<img src="https://github.com/user-attachments/assets/6f201a47-1c84-4a2f-9818-3089f5776f44" alt="Standard" width="700">
 </div>
 
 
 ### "Zap toward the mouse"
 <div align="center">
-<img src="https://github.com/user-attachments/assets/e8fbabcb-dcc5-4de8-944e-d1102441c273" alt="Zap">
+<img src="https://github.com/user-attachments/assets/e8fbabcb-dcc5-4de8-944e-d1102441c273" alt="Zap" width="700">
 </div>
 
 ### Gravity
 <div align="center">
-<img src="https://github.com/user-attachments/assets/ca61ef03-0099-4a0e-9aa9-f072f04264b1" alt="Gravity">
+<img src="https://github.com/user-attachments/assets/ca61ef03-0099-4a0e-9aa9-f072f04264b1" alt="Gravity" width="700">
 </div>
 
 
@@ -43,7 +43,7 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
 - The **Volume(s)** can be adjusted.
 - Each **Sound and Animations** can be adjusted or **turned on/off** seperately.
 <div align="center">
-<img src="https://github.com/user-attachments/assets/1e816e8a-304c-4993-994d-1b480fb3644a" alt="Editor Settings">
+<img src="https://github.com/user-attachments/assets/1e816e8a-304c-4993-994d-1b480fb3644a" alt="Editor Settings" width="700">
 </div>
 
 ## Important notice
