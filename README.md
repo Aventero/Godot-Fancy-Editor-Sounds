@@ -12,8 +12,10 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
 - `Code Editor` Typing, Deleting, Caret Movement, Copy & Pasting, Saving, Undo & Redo and Selecting
 - `Delete Animations` Standard, Zapping to Cursor and Gravity
 
-## Audio Preview! (On YouTube):
 <div align="center">
+  
+## Audio Preview! (On YouTube):
+
 <a href="https://www.youtube.com/watch?v=COm1gXga9EE" >
   <img src="https://github.com/user-attachments/assets/eaa37e8c-4583-4280-b6af-31c7f1a99575" alt="Video Title" width="400">
 </a>
