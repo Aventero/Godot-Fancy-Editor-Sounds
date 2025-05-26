@@ -20,28 +20,23 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
 </div>
 
 
-## Fancy Delete Animations!
-<div align="center">
-  
-### Standard
-<img src="https://github.com/user-attachments/assets/6f201a47-1c84-4a2f-9818-3089f5776f44" alt="Standard" width="700">
-</div>
 
 
 <div align="center">
-  
-### "Zap toward the mouse"
-<img src="https://github.com/user-attachments/assets/e8fbabcb-dcc5-4de8-944e-d1102441c273" alt="Zap" width="700">
+
+## Delete Animations!</h2>
+
+| |
+|:----------------------------------:|
+| **Standard** |
+| <img src="https://github.com/user-attachments/assets/6f201a47-1c84-4a2f-9818-3089f5776f44" alt="Standard" width="700"> |
+| **"Zap toward the mouse"** |
+| <img src="https://github.com/user-attachments/assets/e8fbabcb-dcc5-4de8-944e-d1102441c273" alt="Zap" width="700"> |
+| **Gravity** |
+| <img src="https://github.com/user-attachments/assets/ca61ef03-0099-4a0e-9aa9-f072f04264b1" alt="Gravity" width="700"> |
+| |
+
 </div>
-
-<div align="center">
-
-### Gravity
-
-<img src="https://github.com/user-attachments/assets/ca61ef03-0099-4a0e-9aa9-f072f04264b1" alt="Gravity" width="700">
-
-</div>
-
 
 ## Editor Settings!
 - Found in: `Editor` → `Editor Settings...` → `Enable Advanced Settings` → Scroll to `Fancy Editor Sounds`
