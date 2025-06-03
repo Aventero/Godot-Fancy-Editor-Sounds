@@ -16,8 +16,9 @@ Adds `sounds and animations` based on the Users actions inside the Editor UI, Sc
   
 ## Audio Preview! (On YouTube):
 
+
 <a href="https://www.youtube.com/watch?v=COm1gXga9EE" >
-  <img src="https://github.com/user-attachments/assets/eaa37e8c-4583-4280-b6af-31c7f1a99575" alt="Video Title" width="400">
+  <img src="https://github.com/user-attachments/assets/4c4b726c-3780-41de-ae75-9e0ba49d90ea" alt="Video Title" width="400">
 </a>
 </div>
 
