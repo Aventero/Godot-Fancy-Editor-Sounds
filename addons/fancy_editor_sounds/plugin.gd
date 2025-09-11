@@ -8,6 +8,8 @@ const SettingsManager = preload("res://addons/fancy_editor_sounds/FancyEditorSou
 #region SOUND
 var KEY_DROP: Resource
 var KEY_ZAP: Resource
+var KEY_SPAWN: Resource
+var KEY_BALLOON: Resource
 var sound_player_datas: Dictionary
 var typing_sounds: Array[Resource]
 var settings: FancyEditorSoundsSettings
@@ -46,6 +48,8 @@ enum AnimationType {
 
 #region ANIMATION SETTINGS
 var zap_accumulator: int = 0
+signal single_word_typed
+var word_boundary_chars: Dictionary = {}
 #endregion
 
 #region EDITOR SCANNING
@@ -110,6 +114,8 @@ func initialize() -> void:
 	
 	KEY_DROP = load("res://addons/fancy_editor_sounds/key_drop.tscn")
 	KEY_ZAP = load("res://addons/fancy_editor_sounds/key_zap.tscn")
+	KEY_SPAWN = load("res://addons/fancy_editor_sounds/key_spawn.tscn")
+	KEY_BALLOON = load("res://addons/fancy_editor_sounds/key_balloon.tscn")
 	
 	# Init Sounds
 	create_sound_player(ActionType.TYPING, 0.7, "res://addons/fancy_editor_sounds/keyboard_sounds/key-press-1.mp3")
@@ -134,6 +140,8 @@ func initialize() -> void:
 	
 	load_typing_sounds()
 	set_player_volumes()
+	
+	initialize_word_boundaries()
 	
 	# Start the plugin basically
 	set_process(true)
@@ -498,6 +506,7 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 			return true
 		ActionType.TYPING:
 			play_random_typing_sound()
+			handle_typing_animation(info)
 			return true
 		ActionType.DELETING:
 			play_sound(action_type)
@@ -514,6 +523,7 @@ func handle_action(action_type: ActionType, code_edit: CodeEdit, current_selecti
 			play_sound(action_type)
 			return true
 	return false
+
 
 func handle_delete_animation(info: SoundEditorInfo) -> void:
 	if settings.delete_animations_enabled:
@@ -602,78 +612,6 @@ func just_pressed_action() -> ActionType:
 	
 	return ActionType.NONE
 
-func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
-	var code_edit: CodeEdit = info.code_edit
-	if not code_edit:
-		return false
-	
-	var pressed_action = just_pressed_action()
-	
-	if not has_editor_changed_state(code_edit, info) and pressed_action == ActionType.NONE:
-		return false
-		
-	if not has_editor_focused:
-		has_editor_focused = code_edit.has_focus()
-
-	var current_text = code_edit.text
-	var current_char_count = code_edit.text.length()
-	var current_caret_column = code_edit.get_caret_column()
-	var current_caret_line = code_edit.get_caret_line()
-	var caret_changed = (current_caret_column != info.caret_column || current_caret_line != info.caret_line)
-
-	# Determine what changed and in what order
-	var action_type = ActionType.NONE
-
-	# Check for selection status
-	var has_selection_now = code_edit.has_selection()
-	var new_selection = code_edit.get_selected_text()
-	var current_selection_length = new_selection.length()
-
-	if has_selection_now && current_selection_length != info.selection_length:
-		action_type = ActionType.SELECTING
-	elif !has_selection_now && info.selection_length > 0:
-		action_type = ActionType.DESELECTING
-	elif action_type == ActionType.NONE && caret_changed:
-		action_type = ActionType.CARET_MOVING
-
-	# Check for text changes first
-	if current_char_count > info.char_count:
-		action_type = ActionType.TYPING
-	elif current_char_count < info.char_count:
-		action_type = ActionType.DELETING
-		
-	var single_select: bool = abs(info.selection_length - current_selection_length) == 1
-	
-	if pressed_action != ActionType.NONE:
-		action_type = pressed_action
-
-	
-	var sound_played: bool = handle_action(action_type, code_edit, current_selection_length, new_selection, info)
-	if action_type == ActionType.DELETING:
-		handle_delete_animation(info)
-	
-	info.previous_caret_pos = code_edit.get_caret_draw_pos()
-	info.previous_text = current_text
-	info.previous_line = code_edit.get_line(current_caret_line)
-	info.char_count = current_char_count
-	info.caret_column = current_caret_column
-	info.caret_line = current_caret_line
-	info.previous_line_count = code_edit.get_line_count()
-	info.previous_selection = code_edit.get_selected_text()
-
-	if has_selection_now:
-		info.has_unselected = false
-		info.selection_length = current_selection_length
-	else:
-		info.selection_length = 0
-	
-	if should_reset_zap_accumulator(action_type):
-		zap_accumulator = 0
-		
-	info.tab_pressed = false
-
-	return sound_played
-
 func play_random_typing_sound() -> void:
 	var random_index = randi() % typing_sounds.size()
 	sound_player_datas[ActionType.TYPING].player.stream = typing_sounds[random_index]
@@ -757,7 +695,150 @@ func get_selection_base_position(info: SoundEditorInfo) -> Vector2:
 	
 	var rect = info.code_edit.get_rect_at_line_column(base_line, 0)
 	return Vector2(rect.position + Vector2i(0, rect.size.y / 2))
+
+func initialize_word_boundaries() -> void:
+	var boundaries = [" ", "\t", "\n", "\r"]
 	
+	for char in boundaries:
+		word_boundary_chars[char] = true
+
+func is_word_boundary_char(character: String) -> bool:
+	return character.is_empty() or word_boundary_chars.has(character)
+
+func should_complete_word_on_typing(info: SoundEditorInfo) -> bool:
+	var current_col = info.code_edit.get_caret_column()
+	
+	# no column
+	if current_col <= 0:
+		return false
+	
+	var line_text = info.code_edit.get_line(info.code_edit.get_caret_line())
+	
+	if line_text.is_empty() or current_col > line_text.length():
+		return false
+	
+	var just_typed = line_text[current_col - 1]
+	return is_word_boundary_char(just_typed)
+
+func should_complete_word_on_action(action_type: ActionType) -> bool:
+	match action_type:
+		ActionType.CARET_MOVING:
+			return true
+		ActionType.DELETING, ActionType.PASTE, ActionType.UNDO, ActionType.REDO, ActionType.DESELECTING:
+			return true
+		_:
+			return false
+
+func check_for_completed_word(info: SoundEditorInfo, action_type: ActionType) -> void:
+	var should_complete = false
+	
+	if action_type == ActionType.TYPING:
+		should_complete = should_complete_word_on_typing(info)
+	else:
+		should_complete = should_complete_word_on_action(action_type)
+	if should_complete:
+		complete_current_word()
+
+func complete_current_word() -> void:
+	single_word_typed.emit()
+
+func play_editor_sounds(editor_id: String, info: SoundEditorInfo) -> bool:
+	var code_edit: CodeEdit = info.code_edit
+	if not code_edit:
+		return false
+	
+	var pressed_action = just_pressed_action()
+	
+	if not has_editor_changed_state(code_edit, info) and pressed_action == ActionType.NONE:
+		return false
+		
+	if not has_editor_focused:
+		has_editor_focused = code_edit.has_focus()
+
+	var current_text = code_edit.text
+	var current_char_count = code_edit.text.length()
+	var current_caret_column = code_edit.get_caret_column()
+	var current_caret_line = code_edit.get_caret_line()
+	var caret_changed = (current_caret_column != info.caret_column || current_caret_line != info.caret_line)
+
+	var action_type = ActionType.NONE
+
+	var has_selection_now = code_edit.has_selection()
+	var new_selection = code_edit.get_selected_text()
+	var current_selection_length = new_selection.length()
+
+	if has_selection_now && current_selection_length != info.selection_length:
+		action_type = ActionType.SELECTING
+	elif !has_selection_now && info.selection_length > 0:
+		action_type = ActionType.DESELECTING
+	elif action_type == ActionType.NONE && caret_changed:
+		action_type = ActionType.CARET_MOVING
+
+	if current_char_count > info.char_count:
+		action_type = ActionType.TYPING
+	elif current_char_count < info.char_count:
+		action_type = ActionType.DELETING
+		
+	if pressed_action != ActionType.NONE:
+		action_type = pressed_action
+
+	check_for_completed_word(info, action_type)
+	
+	var sound_played: bool = handle_action(action_type, code_edit, current_selection_length, new_selection, info)
+	if action_type == ActionType.DELETING:
+		handle_delete_animation(info)
+	
+	# Update info state
+	info.previous_caret_pos = code_edit.get_caret_draw_pos()
+	info.previous_text = current_text
+	info.previous_line = code_edit.get_line(current_caret_line)
+	info.char_count = current_char_count
+	info.caret_column = current_caret_column
+	info.caret_line = current_caret_line
+	info.previous_line_count = code_edit.get_line_count()
+	info.previous_selection = code_edit.get_selected_text()
+
+	if has_selection_now:
+		info.has_unselected = false
+		info.selection_length = current_selection_length
+	else:
+		info.selection_length = 0
+	
+	if should_reset_zap_accumulator(action_type):
+		zap_accumulator = 0
+		
+	info.tab_pressed = false
+
+	return sound_played
+
+func play_typing_animation(info: SoundEditorInfo) -> void:
+	var current_col = info.code_edit.get_caret_column()
+	
+	if current_col <= 0:
+		return
+		
+	var current_line = info.code_edit.get_caret_line()
+	var line_text = info.code_edit.get_line(current_line)
+	
+	if line_text.is_empty() or current_col > line_text.length():
+		return
+	
+	var new_char: String = line_text[current_col - 1]
+	
+	# Only add visible characters
+	if not is_word_boundary_char(new_char):
+		var font_size = info.code_edit.get_theme_font_size("font_size", "CodeEdit")
+		var line_height = info.code_edit.get_line_height() 
+		var adjusted_pos = info.code_edit.get_caret_draw_pos() + Vector2(-font_size/4.0, -line_height/2.0)
+		var typed_key: KeyBalloon = KEY_BALLOON.instantiate()
+		info.code_edit.add_child(typed_key)
+		typed_key.position = adjusted_pos
+		typed_key.set_key(new_char, font_size, self)
+
+
+func handle_typing_animation(info: SoundEditorInfo) -> void:
+	play_typing_animation(info)
+
 func play_key_zap_animation(info: SoundEditorInfo) -> void:
 	if not is_instance_valid(info.code_edit):
 		return

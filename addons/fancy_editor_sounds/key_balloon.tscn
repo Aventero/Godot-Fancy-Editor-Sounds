@@ -1,0 +1,35 @@
+[gd_scene load_steps=3 format=3 uid="uid://la0g5phvdp3n"]
+
+[ext_resource type="Script" uid="uid://d1ojgaui3gs4h" path="res://addons/fancy_editor_sounds/key_balloon.gd" id="1_0dfs3"]
+
+[sub_resource type="FontVariation" id="FontVariation_0dfs3"]
+spacing_glyph = 1
+
+[node name="KeyBalloon" type="Node2D"]
+script = ExtResource("1_0dfs3")
+
+[node name="Control" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_left = -8.0
+offset_top = -11.5
+offset_right = 32.0
+offset_bottom = 28.5
+
+[node name="Label" type="Label" parent="Control"]
+modulate = Color(1, 1, 1, 0.588235)
+layout_mode = 0
+offset_left = 1.0
+offset_right = 17.0
+offset_bottom = 23.0
+size_flags_horizontal = 6
+size_flags_vertical = 6
+theme_override_fonts/font = SubResource("FontVariation_0dfs3")
+theme_override_font_sizes/font_size = 14
+text = "TEST"
+
+[node name="Timer" type="Timer" parent="."]
+wait_time = 15.0
+autostart = true
+
+[connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]
